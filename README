@@ -1,2 +1,9 @@
 Forcing layer on top of Coq - copyright (c) 2012 Matthieu Sozeau <matthieu.sozeau@inria.fr>
 
+Do coq_makefile -f Make -o Makefile
+Compile, add to your ~/.coqrc:
+
+Add ML Path "SOMEPATH/Forcing/src".
+Add Rec LoadPath "SOMEPATH/Forcing/theories" as Forcing.
+
+Enjoy!
