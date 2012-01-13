@@ -1,7 +1,6 @@
 Require Export Unicode.Utf8_core.
 Require Export Coq.Program.Program.
-Require Import Relations.
-Require Import RelationClasses.
+Require Import Relations RelationClasses Setoid.
 
 (** Basic definitions for forcing *)
 
@@ -16,6 +15,12 @@ Class Condition (A : Type) := {
 Delimit Scope forcing_scope with forcing.
 
 Notation " x <= y " := (le x y) : forcing_scope.
+
+Require Import Le.
+Instance nat_condition : Condition nat := {| le := Peano.le |}.
+Proof. split; red; intros. apply le_n. eapply le_trans; eauto.
+  intros. apply proof_irrelevance.
+Qed.
 
 Lemma eq_rect_irrel A (x : A) P (px : P x) y prf (py : P y) : 
   px = eq_rect y P py x (symmetry prf) -> eq_rect x P px y prf = py.
@@ -41,6 +46,22 @@ Proof. destruct prf. simpl. reflexivity. Qed.
 Lemma eq_rect_comm {A} {Q : A -> Type} (x y : A) (p : Q y) (prf : x = y) (prf' : y = x) :
   eq_rect x Q (eq_rect y Q p x prf') y prf = p.
 Proof. replace prf' with (eq_sym prf) by apply proof_irrelevance. apply eq_rect_sym. Qed.
+
+Lemma ext_eq_pointwise {A B} (f g : A -> B) (prf : f = g) (x : A) : f x = g x.
+Proof. now subst f. Defined.
+  
+Lemma eq_rect_f {A B C} (f g : A -> B) (P : (A -> B) -> C -> Type) 
+  (pf : forall C, P f C) (prf : f = g) (x : C) : 
+  eq_rect f (fun f : A -> B => forall c, P f c) pf g prf x = 
+  eq_rect f (fun f : A -> B => P f x) (pf x) g prf. 
+Proof. destruct prf. simpl. reflexivity. Qed.
+  
+(* Lemma eq_rect_f {A B} (f g : forall x : A, B x) (P : (forall x : A, B x) -> Type)  *)
+(*   (prf : f = g) (c : A) (pf : B c -> P f) : *)
+(*   eq_rect f (fun f => arrow (f c) (P f)) pf g prf c. *)
+(*   eq_rect f (fun f => P f x) (pf x) g prf.  *)
+(* Proof. destruct prf. simpl. reflexivity. Qed. *)
+
 
 Section Forcing.
   Context {P:Type} `{C : Condition P}.
@@ -197,6 +218,117 @@ Section Forcing.
       rewrite eq_rect_f_equal.
       rewrite eq_rect_comm. reflexivity.
     Qed.
+
+    (*
+    Program Definition I_s (p : P) : sheaf p := {|
+      sheaf_f q := sheaf (`q); 
+      Θ := sheafC p |}.
+
+    Lemma app_irrel {A} {Q : A -> Prop} 
+      (B : Type) (f : sig Q -> B) 
+      (x : sig Q) (prf : Q (`x)) : f x = f (Σ `x, prf).
+    Proof. destruct x. f_equal. simpl. f_equal. pi. Qed.
+
+    Lemma app_dep_irrel {A} {Q : A -> Prop} 
+      (B : A -> Type) (f : forall x : sig Q, B (` x))
+      (x : sig Q) (prf : Q (`x)) : f x = f (Σ `x, prf).
+    Proof. destruct x. simpl in *. rewrite (proof_irrelevance _ q prf). reflexivity. Qed.
+
+    Require Import Setoid Morphisms.
+
+    Notation " 'rew' p 'in' x " := (eq_rect _ _ x _ p) (at level 10, only parsing).
+
+    Lemma eq_sheafs (p : P) (x y : sheaf p) : 
+      forall eq : sheaf_f p x = sheaf_f p y,
+        rew eq in (Θ p x) = Θ p y -> x = y.
+    Proof.
+      destruct x, y; simpl.
+      intros. destruct eq. simpl in *. subst Θ0. f_equal. pi. pi.
+    Qed.
+    
+    Instance proper_extensionality {A} {B: Type} (f : A -> B) : 
+      Proper (pointwise_relation A eq) f.
+    Proof. intro. reflexivity. Defined.
+
+    Instance proper_forall_eq {A} {B: A -> Type} (f : forall x : A, B x) :
+      (forall (a : A) (R : relation (B a)), Proper R (f a)) ->
+      Proper (forall_relation (fun x : A => eq)) f.
+    Proof. intro. intro. reflexivity. Defined.
+
+    Next Obligation.
+    Proof. red. intros.
+      unfold ι_ι_refl. 
+      destruct q. simpl. rewrite eq_trans_eq_refl_l.
+      unfold ι, ι_refl.
+      rewrite eq_rect_f_equal. abstract_eq_proofs. destruct eqH.
+      simpl in *.
+      subst l0.
+      assert(sheaf_f x0 (sheafC p (Σx0, l) (exist (fun x => x <= x0) x0 (reflexivity x0)) x) =
+        sheaf_f x0 x).
+      destruct x. simpl. extensionality y.
+      symmetry ; apply app_irrel.
+      symmetry. symmetry in H.
+      apply eq_sheafs with H.
+      destruct x. simpl in *.
+      unfold sheafC_obligation_1.
+      simpl.
+      extensionality s. extensionality s'; extensionality s''.
+      rewrite eq_trans_eq_refl_l. unfold ι. rewrite eq_rect_f_equal.
+      destruct s, s'; simpl in *.
+      unfold ι in *. simpl in *. 
+      set (theprf:=         (transitivity (x:=x1) (y:=x0) (z:=x0)
+            (transitivity (x:=x1) (y:=x) (z:=x0) l1 l0) 
+            (reflexivity x0))) in *.
+      unfold ι_ι. simpl.
+      unfold transport.
+      rewrite !eq_rect_f.
+      assert((λ x, sheaf_f0 x) = sheaf_f0) by reflexivity.
+      revert s''. 
+      revert H Θ0 sheaf_refl0 sheaf_trans0. destruct H0. subst sheaf_f1.
+      intros. subst theprf.
+      abstract_eq_proofs. 
+      assert(transitivity l0 (reflexivity x0) = l0). apply le_pi.
+      assert 
+        (Θ0 (Σx, l0) (Σx1, l1)
+          (rew H0 in s'') = (Θ0 (Σx, transitivity (x:=x) (y:=x0) (z:=x0) l0 (reflexivity x0))
+          (Σx1, l1))).
+      
+
+      revert s''.
+      revert_until H. revert H.
+
+      change (sheaf_f0
+           (Σx, transitivity (x:=x) (y:=x0) (z:=x0) l0 (reflexivity x0))) with
+      ((fun f => f
+           (Σx, transitivity (x:=x) (y:=x0) (z:=x0) l0 (reflexivity x0))) 
+      (fun x : subp x0 => sheaf_f0 x)).
+      pattern (λ x : subp x0, sheaf_f0 x).
+      
+      Lemma eq_rect_f {Q B} (f g : sig Q -> B) (P : (sig Q -> B) -> Type) 
+        (pf : P f) (prf : f = g) : 
+        eq_rect (λ x, f x) P pf (λ x, g x) prf x = 
+        eq_rect f (fun f : A -> B => P f x) (pf x) g prf. 
+      Proof. destruct prf. simpl. reflexivity. Qed.
+
+      pattern (transitivity l0 (reflexivity x0)).
+
+revert s''.      
+      rewrite H.
+      
+      
+
+      destruct x.
+      unfold sheafC. simpl.
+      unfold ι. simpl. (* setoid_rewrite <- (app_irrel _ sheaf_f0) at 1. *)
+      unfold sheafC_obligation_1. simpl. setoid_rewrite eq_trans_eq_refl_l.
+
+      destruct x. simpl. unfold ι at 1. simpl.
+      assert sheaf_f0 = (
+      Set Printing All. idtac.
+      Check (fun s : subp x0 => ι s).
+
+      unfold ι. simpl. dexs
+      *)
 
   End Translation.
 
