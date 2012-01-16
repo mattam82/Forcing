@@ -142,26 +142,40 @@ Section Forcing.
 
     End Sheaf.
 
-    Record sheaf (p : P) :=
-      { sheaf_f : subp p → Type ; 
-        Θ : transport sheaf_f ;
-        sheaf_refl : refl Θ ;
-        sheaf_trans : trans Θ }.
-        
-(*     Obligation Tactic := idtac. *)
+(*     Record sheaf (p : P) := *)
+(*       { sheaf_f : subp p → Type ;  *)
+(*         Θ : transport sheaf_f ; *)
+(*         sheaf_refl : refl Θ ; *)
+(*         sheaf_trans : trans Θ }. *)
+
+    Definition sheaf (p : P) :=
+      { sheaf_f : subp p -> Type &
+        { Θ : transport sheaf_f |
+          refl Θ /\ trans Θ } }.
+
+    Definition sheaf_f {p : P} (s : sheaf p) : subp p -> Type :=
+      projT1 s.
+
+    Program Definition Θ {p : P} (s : sheaf p) : transport (sheaf_f s) :=
+      projT2 s.
+
+    Definition sheaf_refl {p} (s : sheaf p) : refl (Θ s).
+    Proof. unfold Θ. destruct s. destruct s. destruct a. simpl. assumption. Defined.
+
+    Definition sheaf_trans {p} (s : sheaf p) : trans (Θ s).
+    Proof. unfold Θ. destruct s. destruct s. destruct a. simpl. assumption. Defined.
 
     Program Definition sheafC (p : P) (q : subp p) (r : subp (` q)) 
       (f : sheaf (` q)) : sheaf (` r) :=
-      {| sheaf_f s := sheaf_f _ f (ι s) ;
-        Θ := λ s : subp (`r), λ t : subp (` s), λ x : sheaf_f (` q) f (ι s),
-          (Θ (`q) f (ι s) (ι_ι t) x) : sheaf_f (`q) f (ι_ι t)
-        |}.
+        existT _ (fun s => sheaf_f f (ι s))
+        (λ s : subp (`r), λ t : subp (` s), λ x : sheaf_f f (ι s),
+          (Θ f (ι s) (ι_ι t) x) : sheaf_f f (ι_ι t)).
 
     Next Obligation. intros. unfold ι, ι_ι; simpl. f_equal. apply le_pi. Defined.
 
     Notation " '(Σ' x , y ) " := (exist _ x y).
 
-    Next Obligation. intros. 
+    Next Obligation. split. intros. 
       red. intros. destruct q0. simpl. rewrite eq_trans_eq_refl_l.
       unfold subp. simpl. unfold ι. simpl.
       rewrite eq_rect_f_equal.
@@ -181,16 +195,16 @@ Section Forcing.
       rewrite (trans_refl_l x0 x1 l).
       set (ll0:=transitivity (x:=x0) (y:=x1) (z:=` q) l l0).
       clearbody ll0. intros.
-      set (foo := ((Θ0 (Σx0, ll0) ((exist (fun x => x <= x0) x0 (reflexivity x0)) : subp x0) x))).
-      intros. unfold ι in foo. simpl in *.
-      red in sheaf_refl0. specialize (sheaf_refl0 (Σx0, ll0) x). rewrite <- sheaf_refl0.
+      destruct s. destruct a as [re tr].
+      red in re. 
+      on_call @Θ ltac:(fun c => set (foo := c)).
+      unfold ι in foo. simpl in *.
+      pose (re (Σx0, ll0) x). rewrite <- e.
       unfold ι, ι_refl. simpl. rewrite eq_trans_eq_refl_l.
       rewrite eq_rect_f_equal. f_equal. pi.
-    Qed.
-    
-    Next Obligation.
-    Proof. intros.
-      pose (sheaf_trans _ f).
+
+      (* Trans *)
+      pose (sheaf_trans f).
       match goal with [ |- trans (fun s t x => @?X s t x) ] => set(term:=X) end.
       unfold trans. intros.
       unfold trans_obligation_1; simpl.
