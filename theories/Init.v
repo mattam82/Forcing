@@ -2,6 +2,15 @@ Require Export Unicode.Utf8_core.
 Require Export Coq.Program.Program.
 Require Import Relations RelationClasses Setoid.
 
+Implicit Arguments projT1 [[A] [P]].
+Implicit Arguments projT2 [[A] [P]].
+Implicit Arguments existT [[A] [P]].
+
+Definition prodT (A B : Type) := @sigT A (fun _ => B). 
+Definition pairT (A B : Type) := @existT A (fun _ => B). 
+
+Implicit Arguments pairT [[A] [B]].
+
 (** Basic definitions for forcing *)
 
 (** Forcing conditions come with a preorder *)
@@ -167,7 +176,7 @@ Section Forcing.
 
     Program Definition sheafC (p : P) (q : subp p) (r : subp (` q)) 
       (f : sheaf (` q)) : sheaf (` r) :=
-        existT _ (fun s => sheaf_f f (ι s))
+        existT (fun s => sheaf_f f (ι s))
         (λ s : subp (`r), λ t : subp (` s), λ x : sheaf_f f (ι s),
           (Θ f (ι s) (ι_ι t) x) : sheaf_f f (ι_ι t)).
 

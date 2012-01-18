@@ -115,6 +115,8 @@ let coq_pi1 = lazy (Coqlib.coq_constant "sum" ["Init";"Specif"] "projT1")
 let coq_pi2 = lazy (Coqlib.coq_constant "sum" ["Init";"Specif"] "projT2")
 
 let init_constant mods reference = constr_of_global (Coqlib.find_reference "Forcing" mods reference)
+let coq_nondep_prod = lazy (init_constant ["Forcing";"Init"] "prodT")
+let coq_nondep_pair = lazy (init_constant ["Forcing";"Init"] "pairT")
 
 module type ForcingCond = sig
   
@@ -300,7 +302,10 @@ module Forcing(F : ForcingCond) = struct
 
       
   let mk_pair a b : constr forcing_term =
-    mk_appc (Lazy.force coq_dep_pair) [mk_ty_hole; mk_ty_hole; a; b]    
+    mk_appc (Lazy.force coq_nondep_pair) [mk_ty_hole; mk_ty_hole; a; b]
+
+  let mk_dep_pair a b : constr forcing_term =
+    mk_appc (Lazy.force coq_dep_pair) [mk_ty_hole; mk_ty_hole; a; b]
 
   let rec trans (c : constr) (p : condition forcing_term) : constr forcing_term =
     match kind_of_term c with
