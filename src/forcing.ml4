@@ -118,6 +118,8 @@ let init_constant mods reference = constr_of_global (Coqlib.find_reference "Forc
 let coq_nondep_prod = lazy (init_constant ["Forcing";"Init"] "prodT")
 let coq_nondep_pair = lazy (init_constant ["Forcing";"Init"] "pairT")
 
+let coq_eqtype = lazy (init_constant ["Forcing";"Init"] "eq_type")
+
 module type ForcingCond = sig
   
   val condition_type : types
@@ -259,14 +261,35 @@ module Forcing(F : ForcingCond) = struct
   let ty_hole = new_meta ()
   let hole = new_meta ()
 
-  let mk_hole = fun sigma -> mkMeta hole
-  let mk_ty_hole = fun sigma -> mkMeta ty_hole
+  let mk_hole sigma = mkMeta hole
+  let mk_ty_hole sigma = mkMeta ty_hole
+    
+  let simpl c sigma =
+    let rec aux c = match kind_of_term c with
+      | App (f, args) when isLambda f ->
+	let (na, _, body) = destLambda f in
+	let s' = subst1 args.(0) (subst_var (out_name na) body) in
+	  aux (mkApp (s', array_tl args))
+      | _ -> c
+    in aux (c sigma)
 
   let interp tr p = 
-    mk_appc (Lazy.force coq_pi1) [mk_ty_hole; mk_ty_hole; return tr; p]
+    let term = 
+      match kind_of_term tr with
+      | App (f, args) when f = Lazy.force coq_dep_pair || f = Lazy.force coq_nondep_pair ->
+	return args.(2)
+      | _ ->
+	mk_appc (Lazy.force coq_pi1) [mk_ty_hole; mk_ty_hole; return tr]
+    in simpl (mk_app term [p])
 
   let restriction tr p q = 
-    mk_appc (Lazy.force coq_pi2) [mk_ty_hole; mk_ty_hole; return tr; p; q]
+    let term = 
+      match kind_of_term tr with
+      | App (f, args) when f = Lazy.force coq_dep_pair || f = Lazy.force coq_nondep_pair ->
+	return args.(3)
+      | _ ->
+	mk_appc (Lazy.force coq_pi2) [mk_ty_hole; mk_ty_hole; return tr]
+    in simpl (mk_app term [p; q])
 
   let mk_cond_abs abs na t b = fun sigma ->
     abs (na, t sigma, b sigma)
@@ -290,8 +313,8 @@ module Forcing(F : ForcingCond) = struct
       mk_cond_prod (name "r") (subpt p)
       (mk_cond_prod (name "s") (subpt r)
        (mk_var_prod na t' (r [])
-	(mk_appc (Lazy.force coq_eq)
-	 [ mk_ty_hole; 
+	(mk_appc (Lazy.force coq_eqtype)
+	 [ mk_ty_hole; mk_ty_hole; mk_hole;
 	   mk_app m [mk_var "s"; 
 		     mk_app (restriction t' (mk_var "r") (mk_var "s")) [var_of na]];
 	   mk_app (restriction u' (mk_var "r") (mk_var "s")) 
@@ -318,6 +341,7 @@ module Forcing(F : ForcingCond) = struct
 	  mk_pair fst snd
 
     | Prod (na, t, u) -> fun sigma ->
+      let na = if na = Anonymous then Name (id_of_string "Anonymous") else na in
       let r = mk_var "r" sigma in
       let t' = trans t (mk_var "r") sigma in
       let u' = trans u (mk_var "r") ((na, t', r) :: sigma) in
@@ -359,9 +383,9 @@ module Forcing(F : ForcingCond) = struct
     let sigmaref = ref sigma in
     let rec aux env c = 
       match kind_of_term c with
-      | Meta _ -> 
-	let ty = Evarutil.e_new_evar sigmaref env (new_Type ()) in
-	let c = Evarutil.e_new_evar sigmaref env ty in c
+      | Meta _ -> c
+(* 	let ty = Evarutil.e_new_evar sigmaref env (new_Type ()) in *)
+(* 	let c = Evarutil.e_new_evar sigmaref env ty in c *)
       | Var id -> 
 	(try
 	   let i, _ = lookup_rel (Name id) (rel_context env) in
@@ -373,15 +397,37 @@ module Forcing(F : ForcingCond) = struct
     let c' = aux env c in
       !sigmaref, c'
 
+  let rec meta_to_holes gc =
+    match gc with
+    | Glob_term.GEvar (loc, ek, args) -> Glob_term.GHole (loc, Evd.InternalHole)
+    | c -> Glob_term.map_glob_constr meta_to_holes c
+
   let translate c p env sigma = 
     let c' = trans c p [] in
     let sigma, c' = named_to_nameless env sigma c' in
-      sigma, c'
+    let dt = Detyping.detype true [] [] c' in
+    let dt = meta_to_holes dt in
+      sigma, dt
 
   let tac i c p = fun gs ->
     let env = pf_env gs and sigma = Refiner.project gs in
     let evars, term' = translate c p env sigma in
-      tclTHEN (tclEVARS evars) (pose_proof (Name i) term') gs
+    let evs = ref evars in
+    let term'', ty = Subtac_pretyping.interp env evs term' None in
+      tclTHEN (tclEVARS !evs) 
+      (letin_tac None (Name i) term'' None onConcl) gs
+
+  let command id c p =
+    let env = Global.env () and sigma = Evd.empty in
+    let c = Constrintern.interp_constr sigma env c in
+    let p = Constrintern.interp_constr sigma env p in
+    let evars, term' = translate c (return p) env sigma in
+    let evs = ref evars in
+    let term'', ty = Subtac_pretyping.interp env evs term' None in
+    let evm' = Subtac_utils.evars_of_term !evs Evd.empty term'' in
+    let evm' = Subtac_utils.evars_of_term !evs evm' ty in
+    let evars, _, def, ty = Eterm.eterm_obligations env id !evs evm' 0 term'' ty in
+      ignore (Subtac_obligations.add_definition id ~term:def ty evars)
 
 end
 
@@ -398,4 +444,8 @@ module NatForcing = Forcing(NatCond)
 
 TACTIC EXTEND nat_forcing
 [ "nat_force" constr(c) "at" constr(p) "as" ident(i) ] -> [ NatForcing.tac i c (NatForcing.return p) ]
+END
+
+VERNAC COMMAND EXTEND Force
+[ "Force" ident(i) "at" constr(p) ":=" constr(c)  ] -> [ NatForcing.command i c p ]
 END

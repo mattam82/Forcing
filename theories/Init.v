@@ -7,9 +7,13 @@ Implicit Arguments projT2 [[A] [P]].
 Implicit Arguments existT [[A] [P]].
 
 Definition prodT (A B : Type) := @sigT A (fun _ => B). 
-Definition pairT (A B : Type) := @existT A (fun _ => B). 
+Definition pairT {A B : Type} : A -> B -> prodT A B := @existT A (fun _ => B). 
 
 Implicit Arguments pairT [[A] [B]].
+
+
+Definition eq_type {A B : Type} (p : A = B) (a : A) (b : B) := 
+  eq_rect _ (fun X => X) a _ p = b.
 
 (** Basic definitions for forcing *)
 
@@ -29,7 +33,7 @@ Require Import Le.
 Instance nat_condition : Condition nat := {| le := Peano.le |}.
 Proof. split; red; intros. apply le_n. eapply le_trans; eauto.
   intros. apply proof_irrelevance.
-Qed.
+Defined.
 
 Lemma eq_rect_irrel A (x : A) P (px : P x) y prf (py : P y) : 
   px = eq_rect y P py x (symmetry prf) -> eq_rect x P px y prf = py.
@@ -139,7 +143,7 @@ Section Forcing.
 
       Notation " 'rewrite' p 'in' x " := (eq_rect _ _ x _ p) (at level 10).
 
-      Program Definition refl (Θ : transport f) :=
+      Definition refl (Θ : transport f) :=
         forall q : subp p, forall x : f q, 
           (rewrite (ι_ι_refl q) in (Θ q (ι_refl q) x)) = x.
       
