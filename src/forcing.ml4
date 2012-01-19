@@ -249,7 +249,7 @@ module Forcing(F : ForcingCond) = struct
 	
   let return (x : 'a) : 'a forcing_term = fun _ -> x
 
-  let mk_var s = fun sigma -> mkVar (id_of_string s)
+  let mk_var s = fun sigma -> mkVar s
 
   let mk_app t us = fun sigma ->
     let t' = t sigma in
@@ -292,11 +292,11 @@ module Forcing(F : ForcingCond) = struct
     in simpl (mk_app term [p; q])
 
   let mk_cond_abs abs na t b = fun sigma ->
-    abs (na, t sigma, b sigma)
+    abs (Name na, t sigma, b sigma)
     
   let mk_var_abs abs na t' cond b sigma =
-    let sigma' = (na, t', cond) :: sigma in
-      abs (na, interp t' (return cond) sigma, b sigma')
+    let sigma' = (Name na, t', cond) :: sigma in
+      abs (Name na, interp t' (return cond) sigma, b sigma')
 
   let mk_cond_prod = mk_cond_abs mkProd
   let mk_var_prod = mk_var_abs mkProd
@@ -308,17 +308,31 @@ module Forcing(F : ForcingCond) = struct
 
   let var_of = function Name id -> fun _ -> mkVar id | Anonymous -> assert false
 
-  let comm_pi m na t' u' p =
-    let r = mk_var "r" in
-      mk_cond_prod (name "r") (subpt p)
-      (mk_cond_prod (name "s") (subpt r)
-       (mk_var_prod na t' (r [])
+  let next_ident s =
+    let r = ref 0 in
+    let id = id_of_string s in
+      fun () -> let id' = if !r = 0 then id else add_suffix id (string_of_int !r) in
+	incr r; id'
+
+  let next_q = next_ident "q"
+  let next_r = next_ident "r"
+  let next_s = next_ident "s"
+  let next_f = next_ident "f"
+  let next_anon = next_ident "arg"
+
+  let var id = fun sigma -> mkVar id
+
+  let comm_pi m na rn t' u' p =
+    let sn = next_s () in
+      mk_cond_prod rn (subpt p)
+      (mk_cond_prod sn (subpt (mk_var rn))
+       (mk_var_prod na t' (mk_var rn [])
 	(mk_appc (Lazy.force coq_eqtype)
 	 [ mk_ty_hole; mk_ty_hole; mk_hole;
-	   mk_app m [mk_var "s"; 
-		     mk_app (restriction t' (mk_var "r") (mk_var "s")) [var_of na]];
-	   mk_app (restriction u' (mk_var "r") (mk_var "s")) 
-	    [mk_app m [mk_var "r"; var_of na]] ]
+	   mk_app m [mk_var sn; 
+		     mk_app (restriction t' (mk_var rn) (mk_var sn)) [mk_var na]];
+	   mk_app (restriction u' (mk_var rn) (mk_var sn)) 
+	    [mk_app m [mk_var rn; mk_var na]] ]
 	)
        )
       )
@@ -334,49 +348,55 @@ module Forcing(F : ForcingCond) = struct
     match kind_of_term c with
 
     | Sort s -> 
-	let fst = mk_cond_lam (name "q") (subpt p) 
-	  (mk_appc coq_sheaf [mk_var "q"])
-	in
-	let snd = mk_appc coq_sheafC [p] in
-	  mk_pair fst snd
+      let q = next_q () in 
+      let fst = mk_cond_lam q (subpt p) 
+	(mk_appc coq_sheaf [var q])
+      in
+      let snd = mk_appc coq_sheafC [p] in
+	mk_pair fst snd
 
     | Prod (na, t, u) -> fun sigma ->
-      let na = if na = Anonymous then Name (id_of_string "Anonymous") else na in
-      let r = mk_var "r" sigma in
-      let t' = trans t (mk_var "r") sigma in
-      let u' = trans u (mk_var "r") ((na, t', r) :: sigma) in
+      
+      let na = if na = Anonymous then next_anon () else out_name na in
+      let rn = next_r () and qn = next_q () and fn = next_f () and sn = next_s () in
+      let r = mk_var rn sigma in
+      let t' = trans t (mk_var rn) sigma in
+      let u' = trans u (mk_var rn) ((Name na, t', r) :: sigma) in
       let fty = 
- 	mk_cond_prod (name "r") (mk_appc coq_subp [mk_var "q"])
-	(mk_var_prod na t' r (interp u' (mk_var "r")))
+ 	mk_cond_prod rn (mk_appc coq_subp [mk_var qn])
+	(mk_var_prod na t' r (interp u' (mk_var rn)))
       in
       let ty =
-	mk_cond_lam (name "q") (mk_appc coq_subp [p])
+	mk_cond_lam qn (mk_appc coq_subp [p])
 	(mk_appc (Lazy.force coq_sig)
 	 [fty;
-	  mk_cond_lam (name "f") fty (comm_pi (mk_var "f") na t' u' (mk_var "q"))])
+	  mk_cond_lam fn fty (comm_pi (mk_var fn) na rn t' u' (mk_var qn))])
       in
       let value =
-	mk_cond_lam (name "q") (mk_appc coq_subp [p])
-	(mk_cond_lam (name "r") (mk_appc coq_subp [mk_var "q"])
-          (mk_cond_lam (name "f") (mk_app ty [mk_var "q"])
-	  (mk_cond_lam (name "s") (mk_appc coq_subp [mk_var "r"])
-	   (mk_app (mk_var "f") [mk_var "s"]))))
+	mk_cond_lam qn (mk_appc coq_subp [p])
+	(mk_cond_lam rn (mk_appc coq_subp [mk_var qn])
+         (mk_cond_lam fn (mk_app ty [mk_var qn])
+	  (mk_cond_lam sn (mk_appc coq_subp [mk_var rn])
+	   (mk_app (mk_var fn) [mk_var sn]))))
       in mk_pair ty value sigma
 	 
-    | Lambda (na, t, u) -> fun sigma ->
-      let t' = trans t (mk_var "q") sigma in
-      let term =
-	mk_cond_lam (name "q") (mk_appc coq_subp [p])
-        (mk_var_lam na (interp t' (mk_var "q") sigma) (mkVar (id_of_string "q"))
-	 (trans u (mk_var "q")))
-      in term sigma
-	
-     | Rel n -> fun sigma -> 
-       let (var, tr, cond) = List.nth sigma (pred n) in
-       let restrict = restriction tr (fun sigma -> cond) p in
-	 mk_app restrict [return (mkVar (out_name var))] sigma
-	 
-    | _ -> return c
+      | Lambda (na, t, u) -> fun sigma ->
+
+	let na = if na = Anonymous then next_anon () else out_name na in
+	let qn = next_q () in
+	let t' = trans t (mk_var qn) sigma in
+	let term =
+	  mk_cond_lam qn (mk_appc coq_subp [p])
+          (mk_var_lam na (interp t' (mk_var qn) sigma) (mkVar qn)
+	   (trans u (mk_var qn)))
+	in term sigma
+	   
+	| Rel n -> fun sigma -> 
+	  let (var, tr, cond) = List.nth sigma (pred n) in
+	  let restrict = restriction tr (fun sigma -> cond) p in
+	    mk_app restrict [return (mkVar (out_name var))] sigma
+	    
+	  | _ -> return c
 
 
   let named_to_nameless env sigma c =
