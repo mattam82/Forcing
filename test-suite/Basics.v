@@ -20,6 +20,20 @@ Section Test.
 
   Obligation Tactic := program_simpl; eauto with forcing.
 
+  Force empty at p := (forall X : Set, X).
+
+  Next Obligation. f_equal. 
+    unfold ι, ι_refl. simpl. pi. Defined.
+
+  Next Obligation. f_equal. 
+    unfold ι, ι_refl. simpl. pi. Defined.
+
+  Program Definition foo := (projT1 empty p).
+
+  Eval hnf in foo.
+
+    Typeclasses eauto := debug.
+
   Force identity at p := (forall X : Set, X -> X).
 
   Lemma subp_surj : forall (p : nat) (q : subp p) (r : subp (` q)), r = (ι (p:=`q) r).
@@ -73,20 +87,6 @@ clearbody a. rewrite <- subp_surj in arg2. specialize (a arg2). specialize (H1 _
 
 
   Force empty at p := (forall X : Set, X).
-
-  Next Obligation. apply (proj2_sig (ι s)). Defined.
-  Next Obligation. f_equal. 
-    unfold ι, ι_refl. simpl. pi. Defined.
-
-  Next Obligation. apply (proj2_sig (ι s)). Defined.
-  Next Obligation. f_equal. 
-    unfold ι, ι_refl. simpl. pi. Defined.
-
-  Next Obligation. apply (proj2_sig (ι s)). Defined.
-
-  Program Definition foo := (projT1 empty p).
-
-  Eval hnf in foo.
     
 apply (proj2_sig (ι s)). Defined.
 
