@@ -329,9 +329,9 @@ module Forcing(F : ForcingCond) = struct
       (mk_appc (Lazy.force coq_eqtype)
        [ mk_ty_hole; mk_ty_hole; mk_hole;
 	 mk_app m [mk_var sn; 
-		   mk_app (restriction t' (mk_var rn) (mk_var sn)) [mk_var na]];
-	 mk_app (restriction u' (mk_var rn) (mk_var sn)) 
-	 [mk_app m [mk_var rn; mk_var na]] ]
+		   simpl (mk_app (restriction t' (mk_var rn) (mk_var sn)) [mk_var na])];
+	 simpl (mk_app (restriction u' (mk_var rn) (mk_var sn)) 
+		[mk_app m [mk_var rn; mk_var na]]) ]
       )
      )
     )
@@ -377,10 +377,10 @@ module Forcing(F : ForcingCond) = struct
 	let rn' = next_r () in
 	mk_cond_lam qn' (mk_appc coq_subp [p])
 	(mk_cond_lam rn' (mk_appc coq_subp [mk_var qn'])
-         (mk_cond_lam fn (mk_app (fun sigma -> 
-				  let ty = ty sigma in
-				  let p = p sigma in
-				    replace_vars [destVar p, mkVar qn'] ty) [mk_var qn'])
+         (mk_cond_lam fn (simpl (mk_app (fun sigma -> 
+					  let ty = ty sigma in
+					  let p = p sigma in
+					    replace_vars [destVar p, mkVar qn'] ty) [mk_var qn']))
 	  (mk_cond_lam sn (mk_appc coq_subp [mk_var rn'])
 	   (mk_app (mk_var fn) [mk_var sn]))))
       in mk_pair ty value sigma
@@ -396,10 +396,10 @@ module Forcing(F : ForcingCond) = struct
 	   (trans u (mk_var qn)))
 	in term sigma
 	   
-	| Rel n -> fun sigma -> 
-	  let (var, tr, cond) = List.nth sigma (pred n) in
-	  let restrict = restriction tr (fun sigma -> cond) p in
-	    mk_app restrict [return (mkVar (out_name var))] sigma
+      | Rel n -> fun sigma -> 
+	let (var, tr, cond) = List.nth sigma (pred n) in
+	let restrict = restriction tr (fun sigma -> cond) p in
+	  simpl (mk_app restrict [return (mkVar (out_name var))]) sigma
 	    
 	  | _ -> return c
 

@@ -85,16 +85,16 @@ Section Forcing.
 
   (** [subp] also forms valid forcing conditions *)
 
-  Global Program Instance subp_cond p : Condition (subp p) := 
-  { le x y := `x <= y }.
+(*   Global Program Instance subp_cond p : Condition (subp p) :=  *)
+(*   { le x y := `x <= y }. *)
 
-  Next Obligation.
-  Proof. constructor; red. intro x; apply reflexivity.
-    intros x y z; apply transitivity.
-  Defined.
+(*   Next Obligation. *)
+(*   Proof. constructor; red. intro x; apply reflexivity. *)
+(*     intros x y z; apply transitivity. *)
+(*   Defined. *)
 
-  Next Obligation.
-  Proof. apply le_pi. Defined. 
+(*   Next Obligation. *)
+(*   Proof. apply le_pi. Defined.  *)
 
   (** The injection from P_q to P_p with q <= p *)
 
