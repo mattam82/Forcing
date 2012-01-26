@@ -11,6 +11,8 @@ Definition pairT {A B : Type} : A -> B -> prodT A B := @existT A (fun _ => B).
 
 Implicit Arguments pairT [[A] [B]].
 
+Definition conv_annot {T U : Type} (M : U) : U := M.
+Definition app_annot {T} {U : T -> Type} {N : T} (V : U N) : U N := V.
 
 Definition eq_type {A B : Type} (p : A = B) (a : A) (b : B) := 
   eq_rect _ (fun X => X) a _ p = b.

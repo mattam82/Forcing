@@ -1,4 +1,4 @@
-(* -*- compile-command: "COQBIN=~/research/coq/git/bin/ make -k -C .. src/forcing_plugin.cma src/forcing_plugin.cmxs" -*- *)
+(* -*- compile-command: "COQBIN=~/research/coq/trunk/bin/ make -k -C .. src/forcing_plugin.cma src/forcing_plugin.cmxs" -*- *)
 (************************************************************************)
 (*  v      *   The Coq Proof Assistant  /  The Coq Development Team     *)
 (* <O___,, * CNRS-Ecole Polytechnique-INRIA Futurs-Universite Paris Sud *)
@@ -109,6 +109,9 @@ let coq_proj1_sig = lazy (Coqlib.coq_constant "proj1_sig" ["Init";"Specif"] "pro
 let coq_exist = lazy (Coqlib.coq_constant "exist" ["Init";"Specif"] "exist")
 let coq_sig = lazy (Coqlib.coq_constant "sig" ["Init";"Specif"] "sig")
 
+let coq_eq_rect = lazy (Coqlib.coq_constant "eq" ["Init";"Logic"] "eq_rect")
+let coq_identity = lazy (Coqlib.coq_constant "eq" ["Init";"Datatypes"] "identity")
+
 let coq_sum = lazy (Coqlib.coq_constant "sum" ["Init";"Specif"] "sigT")
 let coq_dep_pair = lazy (Coqlib.coq_constant "sum" ["Init";"Specif"] "existT")
 let coq_pi1 = lazy (Coqlib.coq_constant "sum" ["Init";"Specif"] "projT1")
@@ -119,6 +122,9 @@ let coq_nondep_prod = lazy (init_constant ["Forcing";"Init"] "prodT")
 let coq_nondep_pair = lazy (init_constant ["Forcing";"Init"] "pairT")
 
 let coq_eqtype = lazy (init_constant ["Forcing";"Init"] "eq_type")
+
+let coq_app = lazy (init_constant ["Forcing";"Init"] "app_annot")
+let coq_conv = lazy (init_constant ["Forcing";"Init"] "conv_annot")
 
 module type ForcingCond = sig
   
@@ -342,67 +348,105 @@ module Forcing(F : ForcingCond) = struct
 
   let mk_dep_pair a b : constr forcing_term =
     mk_appc (Lazy.force coq_dep_pair) [mk_ty_hole; mk_ty_hole; a; b]
-
+      
   let rec trans (c : constr) (p : condition forcing_term) : constr forcing_term =
-    match kind_of_term c with
+    let interpretation c p sigma = interp (trans c p sigma) p sigma in
 
+    match kind_of_term c with
     | Sort s -> 
-      let q = next_q () in 
-      let fst = mk_cond_lam q (subpt p) 
-	(mk_appc coq_sheaf [var q])
-      in
-      let snd = mk_appc coq_sheafC [p] in
-	mk_pair fst snd
+	let q = next_q () in 
+	let fst = mk_cond_lam q (subpt p) 
+	  (mk_appc coq_sheaf [var q])
+	in
+	let snd = mk_appc coq_sheafC [p] in
+	  mk_pair fst snd
 
     | Prod (na, t, u) -> 
-      let na = if na = Anonymous then next_anon () else out_name na in
-      let rn = next_r () and qn = next_q () and fn = next_f () and sn = next_s () in
-	fun sigma ->
-      
-      let r = mk_var rn sigma in
-      let t' = trans t (mk_var rn) sigma in
-      let u' = trans u (mk_var rn) ((Name na, t', r) :: sigma) in
-      let fty = 
- 	mk_cond_prod rn (mk_appc coq_subp [mk_var qn])
-	(mk_var_prod na t' r (interp u' (mk_var rn)))
-      in
-      let ty =
-	mk_cond_lam qn (mk_appc coq_subp [p])
-	(mk_appc (Lazy.force coq_sig)
-	 [fty;
-	  mk_cond_lam fn fty (comm_pi (mk_var fn) na rn t' sn u' (mk_var qn))])
-      in
-      let value =
-	let qn' = next_q () in
-	let rn' = next_r () in
-	mk_cond_lam qn' (mk_appc coq_subp [p])
-	(mk_cond_lam rn' (mk_appc coq_subp [mk_var qn'])
-         (mk_cond_lam fn (simpl (mk_app (fun sigma -> 
-					  let ty = ty sigma in
-					  let p = p sigma in
-					    replace_vars [destVar p, mkVar qn'] ty) [mk_var qn']))
-	  (mk_cond_lam sn (mk_appc coq_subp [mk_var rn'])
-	   (mk_app (mk_var fn) [mk_var sn]))))
-      in mk_pair ty value sigma
-	 
-      | Lambda (na, t, u) -> fun sigma ->
-
 	let na = if na = Anonymous then next_anon () else out_name na in
-	let qn = next_q () in
-	let t' = trans t (mk_var qn) sigma in
-	let term =
-	  mk_cond_lam qn (mk_appc coq_subp [p])
-          (mk_var_lam na (interp t' (mk_var qn) sigma) (mkVar qn)
-	   (trans u (mk_var qn)))
-	in term sigma
-	   
-      | Rel n -> fun sigma -> 
-	let (var, tr, cond) = List.nth sigma (pred n) in
-	let restrict = restriction tr (fun sigma -> cond) p in
-	  simpl (mk_app restrict [return (mkVar (out_name var))]) sigma
+	let rn = next_r () and qn = next_q () and fn = next_f () and sn = next_s () in
+	  begin fun sigma ->
+	    let r = mk_var rn sigma in
+	    let t' = trans t (mk_var rn) sigma in
+	    let u' = trans u (mk_var rn) ((Name na, t', r) :: sigma) in
+	    let fty = 
+ 	      mk_cond_prod rn (mk_appc coq_subp [mk_var qn])
+		(mk_var_prod na t' r (interp u' (mk_var rn)))
+	    in
+	    let ty =
+	      mk_cond_lam qn (mk_appc coq_subp [p])
+		(mk_appc (Lazy.force coq_sig)
+		   [fty;
+		    mk_cond_lam fn fty (comm_pi (mk_var fn) na rn t' sn u' (mk_var qn))])
+	    in
+	    let value =
+	      let qn' = next_q () in
+	      let rn' = next_r () in
+		mk_cond_lam qn' (mk_appc coq_subp [p])
+		  (mk_cond_lam rn' (mk_appc coq_subp [mk_var qn'])
+		     (mk_cond_lam fn (simpl (mk_app (fun sigma -> 
+						       let ty = ty sigma in
+						       let p = p sigma in
+							 replace_vars [destVar p, mkVar qn'] ty) [mk_var qn']))
+			(mk_cond_lam sn (mk_appc coq_subp [mk_var rn'])
+			   (mk_app (mk_var fn) [mk_var sn]))))
+	    in mk_pair ty value sigma
+	  end
 	    
-	  | _ -> return c
+    | Lambda (na, t, u) -> 
+	begin 
+	  fun sigma ->
+	    let na = if na = Anonymous then next_anon () else out_name na in
+	    let qn = next_q () in
+	    let t' = trans t (mk_var qn) sigma in
+	    let term =
+	      mk_cond_lam qn (mk_appc coq_subp [p])
+		(mk_var_lam na (interp t' (mk_var qn) sigma) (mkVar qn)
+		   (trans u (mk_var qn)))
+	    in term sigma
+	end
+	  
+    | Rel n -> begin
+	fun sigma -> 
+	  let (var, tr, cond) = List.nth sigma (pred n) in
+	  let restrict = restriction tr (fun sigma -> cond) p in
+	    simpl (mk_app restrict [return (mkVar (out_name var))]) sigma
+      end
 
+    | App (f, args) when f = Lazy.force coq_app -> 
+	let fty = args.(1) and n = args.(2) and m = args.(3) in
+	let na, t, u = destLambda fty in
+	let uxn = interpretation (subst1 n u) p in
+	let u sigma = 
+	  let sigma' = ((na, t, p sigma) :: sigma) in
+	    interp (trans u p sigma') p sigma' 
+	in
+	let np = trans n p in
+	  mk_appc (Lazy.force coq_eq_rect)
+	    [uxn; mk_appc (Lazy.force coq_identity) [mk_hole]; 
+	     (fun sigma -> replace_vars [out_name na, np sigma] (u sigma));
+	     mk_hole; trans m p]
+
+    | App (f, args) when f = Lazy.force coq_conv -> 
+	let t = args.(0) and u = args.(1) and m = args.(2) in
+	  mk_appc (Lazy.force coq_eq_rect)
+	    [interpretation u p; return (Lazy.force coq_identity); 
+	     interpretation t p; mk_hole; trans m p]
+	
+    | App (f, args) when f = Lazy.force coq_sum -> assert false
+
+    | App (f, args) -> 
+	mk_app (trans f p) (p :: List.map (fun x -> trans x p) (Array.to_list args))
+
+    | _ -> 
+	let term = mk_cond_lam (next_q ()) (mk_appc coq_subp [p]) (return c) in
+	let restr = 
+	  let qn = next_q () and rn = next_r () and sn = next_s () in
+	    mk_cond_lam qn (mk_appc coq_subp [p])
+	      (mk_cond_lam rn (mk_appc coq_subp [mk_var qn])
+		 (mk_cond_lam sn (mk_appc coq_subp [mk_var rn])
+		    (mk_var sn))) 
+	in
+	  mk_pair term restr
 
   let named_to_nameless env sigma c =
     let sigmaref = ref sigma in

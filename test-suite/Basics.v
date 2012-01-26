@@ -23,6 +23,9 @@ Section Test.
 
   Obligation Tactic := program_simpl; eauto 2 with forcing.
 
+  Force app at p := (forall (f : nat -> Prop) (x : nat), f x).
+
+
   Force empty at p := (forall X : Set, X).
 
   Next Obligation. f_equal.
