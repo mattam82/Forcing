@@ -57,10 +57,11 @@ let list_map_filter_i f l =
     | [] -> []
   in aux 0 l
 
+
 let find_constant contrib dir s =
   constr_of_global (Coqlib.find_reference contrib dir s)
 
-let contrib_name = "Equations"
+let contrib_name = "Forcing"
 let init_constant dir s = find_constant contrib_name dir s
 let init_reference dir s = Coqlib.find_reference contrib_name dir s
 

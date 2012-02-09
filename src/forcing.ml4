@@ -122,6 +122,7 @@ let coq_nondep_prod = lazy (init_constant ["Forcing";"Init"] "prodT")
 let coq_nondep_pair = lazy (init_constant ["Forcing";"Init"] "pairT")
 
 let coq_eqtype = lazy (init_constant ["Forcing";"Init"] "eq_type")
+let coq_eqtype_ref = lazy (init_reference ["Forcing";"Init"] "eq_type")
 
 let coq_app = lazy (init_constant ["Forcing";"Init"] "app_annot")
 let coq_conv = lazy (init_constant ["Forcing";"Init"] "conv_annot")
@@ -285,7 +286,7 @@ module Forcing(F : ForcingCond) = struct
       | App (f, args) when f = Lazy.force coq_dep_pair || f = Lazy.force coq_nondep_pair ->
 	return args.(2)
       | _ ->
-	mk_appc (Lazy.force coq_pi1) [mk_ty_hole; mk_ty_hole; return tr]
+	mk_appc (Lazy.force coq_pi1) [mk_ty_hole; mk_ty_hole; simpl (return tr)]
     in simpl (mk_app term [p])
 
   let restriction tr p q = 
@@ -294,7 +295,7 @@ module Forcing(F : ForcingCond) = struct
       | App (f, args) when f = Lazy.force coq_dep_pair || f = Lazy.force coq_nondep_pair ->
 	return args.(3)
       | _ ->
-	mk_appc (Lazy.force coq_pi2) [mk_ty_hole; mk_ty_hole; return tr]
+	mk_appc (Lazy.force coq_pi2) [mk_ty_hole; mk_ty_hole; simpl (return tr)]
     in simpl (mk_app term [p; q])
 
   let mk_cond_abs abs na t b = fun sigma ->
@@ -309,22 +310,28 @@ module Forcing(F : ForcingCond) = struct
   let mk_cond_lam = mk_cond_abs mkLambda
   let mk_var_lam = mk_var_abs mkLambda
 
+  let mk_let na c t b = fun sigma ->
+    mkLetIn (Name na, c sigma, t sigma, b sigma)
+
   let subpt p = 
     mk_appc coq_subp [p]
 
   let var_of = function Name id -> fun _ -> mkVar id | Anonymous -> assert false
 
-  let next_ident s =
+  let build_ident s =
     let r = ref 0 in
     let id = id_of_string s in
-      fun () -> let id' = if !r = 0 then id else add_suffix id (string_of_int !r) in
-	incr r; id'
+      (fun () -> r := 0), 
+      (fun () -> let id' = if !r = 0 then id else add_suffix id (string_of_int !r) in
+	 incr r; id')
 
-  let next_q = next_ident "q"
-  let next_r = next_ident "r"
-  let next_s = next_ident "s"
-  let next_f = next_ident "f"
-  let next_anon = next_ident "arg"
+  let clear_p, next_p = build_ident "p"
+  let clear_q, next_q = build_ident "q"
+  let clear_r, next_r = build_ident "r"
+  let clear_s, next_s = build_ident "s"
+  let clear_f, next_f = build_ident "f"
+  let clear_ty, next_ty = build_ident "ty"
+  let clear_anon, next_anon = build_ident "arg"
 
   let var id = fun sigma -> mkVar id
 
@@ -334,10 +341,11 @@ module Forcing(F : ForcingCond) = struct
      (mk_var_prod na t' (mk_var rn [])
       (mk_appc (Lazy.force coq_eqtype)
        [ mk_ty_hole; mk_ty_hole; mk_hole;
+	 simpl (mk_app (restriction u' (mk_var rn) (mk_var sn)) 
+		[mk_app m [mk_var rn; mk_var na]]);
 	 mk_app m [mk_var sn; 
 		   simpl (mk_app (restriction t' (mk_var rn) (mk_var sn)) [mk_var na])];
-	 simpl (mk_app (restriction u' (mk_var rn) (mk_var sn)) 
-		[mk_app m [mk_var rn; mk_var na]]) ]
+       ]
       )
      )
     )
@@ -362,8 +370,9 @@ module Forcing(F : ForcingCond) = struct
 	  mk_pair fst snd
 
     | Prod (na, t, u) -> 
-	let na = if na = Anonymous then next_anon () else out_name na in
+	let na = next_anon () in
 	let rn = next_r () and qn = next_q () and fn = next_f () and sn = next_s () in
+	let pn = next_p () in
 	  begin fun sigma ->
 	    let r = mk_var rn sigma in
 	    let t' = trans t (mk_var rn) sigma in
@@ -373,23 +382,25 @@ module Forcing(F : ForcingCond) = struct
 		(mk_var_prod na t' r (interp u' (mk_var rn)))
 	    in
 	    let ty =
-	      mk_cond_lam qn (mk_appc coq_subp [p])
-		(mk_appc (Lazy.force coq_sig)
-		   [fty;
-		    mk_cond_lam fn fty (comm_pi (mk_var fn) na rn t' sn u' (mk_var qn))])
+	      mk_cond_lam pn (return condition_type)
+	      (mk_cond_lam qn (mk_appc coq_subp [mk_var pn])
+	       (mk_appc (Lazy.force coq_sig)
+		[fty;
+		 mk_cond_lam fn fty (comm_pi (mk_var fn) na rn t' sn u' (mk_var qn))]))
 	    in
 	    let value =
 	      let qn' = next_q () in
 	      let rn' = next_r () in
 		mk_cond_lam qn' (mk_appc coq_subp [p])
 		  (mk_cond_lam rn' (mk_appc coq_subp [mk_var qn'])
-		     (mk_cond_lam fn (simpl (mk_app (fun sigma -> 
-						       let ty = ty sigma in
-						       let p = p sigma in
-							 replace_vars [destVar p, mkVar qn'] ty) [mk_var qn']))
+		     (mk_cond_lam fn (mk_app ty [p; mk_var qn'])
 			(mk_cond_lam sn (mk_appc coq_subp [mk_var rn'])
-			   (mk_app (mk_var fn) [mk_var sn]))))
-	    in mk_pair ty value sigma
+			 (mk_app (mk_var fn) [mk_var sn]))))
+	    in 
+(* 	      (mk_let tyn  *)
+(* 		 ty *)
+(* 	         (fun _ -> mkProd (Anonymous, condition_type, new_Type ())) *)
+		 (mk_pair (mk_app ty [p]) value) sigma
 	  end
 	    
     | Lambda (na, t, u) -> 
@@ -469,9 +480,18 @@ module Forcing(F : ForcingCond) = struct
   let rec meta_to_holes gc =
     match gc with
     | Glob_term.GEvar (loc, ek, args) -> Glob_term.GHole (loc, Evd.InternalHole)
+    | Glob_term.GApp (loc, (Glob_term.GRef (loc', gr) as f), args) when gr = Lazy.force coq_eqtype_ref ->
+      let args' = List.map meta_to_holes args in
+	(match args' with
+	   [a; b; prf; t; u] ->
+	   Glob_term.GApp (loc, f,
+			   [a; b; prf; Glob_term.GCast (loc, t, Glob_term.CastCoerce);
+			    Glob_term.GCast (loc, u, Glob_term.CastCoerce)])
+	 | _ -> assert false)
     | c -> Glob_term.map_glob_constr meta_to_holes c
 
   let translate c p env sigma = 
+    clear_p (); clear_q (); clear_r (); clear_s (); clear_f (); clear_anon (); clear_ty ();
     let c' = trans c p [] in
     let sigma, c' = named_to_nameless env sigma c' in
     let dt = Detyping.detype true [] [] c' in

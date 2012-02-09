@@ -25,62 +25,66 @@ Section Test.
   Notation sheaf := (@sheaf nat nat_condition).
   Notation sheafC := (@sheafC nat nat_condition).
 
-  Obligation Tactic := program_simpl; eauto 2 with forcing.
-    Unset Printing All.
-  Force app at p := (forall (f : nat -> Prop), Set).
+  Obligation Tactic := program_simpl; auto with forcing.
 
+  Force foo at p := (forall (f : nat -> Prop) (x : nat), f x).
 
-Set Typeclasses Debug.
-    Program Definition foo : subp p -> Type :=
-
-     (λ q55 : subp p,
-      {f15
-      : ∀ (r40 : subp (` q55))
-        (f : {f16 : ∀ r41 : subp (` r40), nat → sheaf (`r41) |
-             ∀ (r41 : subp r40) (s26 : subp r41) (arg5 : nat),
-             eq_type _ (f16 s26 arg5) (sheafC (`r41) r41 s26 (f16 r41 arg5))}),
-        {f17
-        : ∀ (r44 : subp r40) (x : nat),
-          projT1 (f r44 x) r44 |
-        ∀ (r44 : subp r40) (s28 : subp r44) (x : nat),
-        eq_type _ (f17 s28 x)
-          (projT2 (f r44 x) r44 s28 (f17 r44 x))} |
-        
-      ∀ (r40 : subp q55) (s25 : subp r40)
-      (f : {f16 : ∀ r41 : subp r40, nat → sheaf r41 |
-           ∀ (r41 : subp r40) (s26 : subp r41) (arg5 : nat),
-           eq_type _ (f16 s26 arg5) (sheafC r41 r41 s26 (f16 r41 arg5))}),
-      True }).
-
-(*       eq_type _ (f15 (ι s25) f) *)
-(*         (f15 r40 f)}). *)
-
-
-Next Obligation.
+Next Obligation. 
   intros. 
-  unfold foo_obligation_3. 
-  specialize (H r12 s8 x).
-  unfold foo_obligation_2 in H. unfold eq_type in H. simpl in H.
-  destruct r8, r12, s8. simpl in *. unfold ι; simpl. 
-  unfold foo_obligation_1 in H. simpl in H.
-  rewrite H.
-  unfold sheafC. simpl. unfold sheaf_f. f_equal. unfold ι. simpl. pi.
+  unfold ι. clear_subset_proofs. 
+  specialize (H r4 s3 arg2).
+  unfold foo_obligation_2, eq_type in H; simpl in *. 
+  unfold Init.subp in *; destruct_exists. simpl in *.
+  unfold foo_obligation_1 in H. simpl in H. revert H; clear_subset_proofs.
+  intros. rewrite <- H.
+  simpl. unfold ι; simpl; clear_subset_proofs. reflexivity.
 Defined.
-  
-  
-  
+
+Next Obligation. 
+  unfold foo_obligation_2, eq_type in *; simpl in *.
+  clear_subset_proofs. 
+  rewrite (H  {Σ` r1, eqH}). clear_subset_proofs. reflexivity.
+Defined.
+
+Obligation Tactic := idtac.
+Next Obligation. 
+  intros. simpl proj1_sig.
+  unfold foo_obligation_11, eq_type in arg. simpl in arg.
+  destruct arg. clear_subset_proofs. specialize (e r4 s3 arg2).
+  revert e; clear_subset_proofs. intros.
+  rewrite <- e. simpl.  
+  unfold ι. clear_subset_proofs. simpl. reflexivity.
+Defined.
+
+Next Obligation. 
+  intros. clear. destruct r, s, s3; simpl in *; eauto with arith forcing.
+Defined. 
 
 
-      ∀ (r8 : subp q11) (s5 : subp r8)
-      (f : {f4 : ∀ r9 : subp r8, nat → sheaf r9 |
-           ∀ (r9 : subp r8) (s6 : subp r9) (arg1 : nat),
-           eq_type _ (f4 s6 arg1) (sheafC r9 r9 s6 (f4 r9 arg1))}),
-      eq_type _ (f3 s5 (λ s6 : subp s5, f s6)) (λ s8 : subp s5, f3 r8 f s8)}).
+Next Obligation. 
+  intros; clear. destruct r, s; simpl in *; eauto with arith forcing. Defined.
+Next Obligation. 
+  intros; clear. destruct s1, s; simpl in *; eauto with arith forcing. Defined.
+Next Obligation. 
+  intros; clear. 
+  unfold foo_obligation_11, eq_type in *; simpl in *.
+  destruct arg. simpl. clear_subset_proofs. specialize (e {Σ` r1, eqH} s1 arg1).
+  simpl in e. destruct r1; clear_subset_proofs. simpl in *. revert e. clear_subset_proofs.
+  intros. rewrite <- e. pi.
+Defined.
 
+Next Obligation. 
+  intros; clear. simpl. 
+  unfold foo_obligation_14 at 2. destruct r. simpl. destruct arg. simpl. clear_subset_proofs.
 
+Axiom prod_extensionality : forall A (B B' : A -> Type), (∀ x : A, B x = B' x) -> (∀ x : A, B x) = (∀ x : A, B' x).
 
+  do 2 (apply prod_extensionality; intros). clear_subset_proofs. pi. Defined.
+Next Obligation. 
+  intros; clear. destruct s, r7; simpl in *; eauto with arith forcing.
+Defined.
 
-
+Print foo.
   Force empty at p := (forall X : Set, X).
 
   Next Obligation. f_equal.
