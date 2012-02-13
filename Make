@@ -2,7 +2,7 @@
 -custom "$(CAMLOPTLINK) $(ZDEBUG) $(ZFLAGS) -shared -o $@ $^" "src/forcing_common.cmx src/forcing.cmx src/forcing_plugin_mod.cmx" src/forcing_plugin.cmxs
 -custom "$(CAMLLINK) -g -a -o $@ $^" "src/forcing_common.cmo src/forcing.cmo src/forcing_plugin_mod.cmo" src/forcing_plugin.cma
 -custom "$(COQBIN)coqc $(COQDEBUG) $(COQFLAGS) $(OTHERFLAGS) $*" "%.v $(UNICOQPLUGINOPT) $(UNICOQPLUGIN)" "%.vo %.glob"
--custom "coqmktop -o $@ $^" "src/forcing_plugin.cma" coqtop
+-custom "coqmktop -o $@ -I $(COQLIB)/plugins/subtac subtac_plugin.cma $^" "src/forcing_plugin.cma" coqtop
 UNICOQPLUGIN = "src/forcing_plugin.cma"
 UNICOQPLUGINOPT = "src/forcing_plugin.cmxs"
 COQDOC = "$(COQBIN)coqdoc -interpolate -utf8"
