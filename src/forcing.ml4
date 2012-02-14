@@ -410,16 +410,12 @@ module Forcing(F : ForcingCond) = struct
 	  let fty = 
  	    mk_cond_prod rn (mk_appc coq_subp [mk_var qn])
 	    (mk_var_prod na (fun sigma -> 
-			     if !t' = mkRel 0 then
-			       let term = translation t (mk_var rn) sigma in
-				 t' := term; term
-			     else !t')
+			     let term = mk_app (trans t) [mk_var rn] sigma in
+			       t' := term; mkApp (term, [|mkVar rn|]))
 	     (mkVar rn)
 			     (fun sigma ->
-			      if !u' = mkRel 0 then
-				let term = translation u (mk_var rn) sigma in
-				  u' := term; interp term (mk_var rn) sigma
-			      else interp !u' (mk_var rn) sigma))
+			      let term = translation u (mk_var rn) sigma in
+				u' := term; mkApp (term, [|mkVar rn|])))
 	    in
 	    let ty =
 	      mk_cond_lam pn (return condition_type)
@@ -427,14 +423,12 @@ module Forcing(F : ForcingCond) = struct
 	       (mk_appc (Lazy.force coq_sig)
 		[fty;
 		 fun sigma ->
-		 mk_cond_lam fn fty (comm_pi (mk_var fn) na rn (fun sigma -> !t') sn !u' (mk_var qn)) sigma]))
+		 mk_cond_lam fn fty (comm_pi (mk_var fn) na rn (fun sigma -> !t') sn !u' (mk_var qn))]))
 	    in
 	      (fun sigma ->
-	       msgnl (str"product translation called once");
 	       let vars, tyabs = abstract (ty sigma) sigma in
 		 defs := (tyn, tyabs) :: !defs;
 		 let ty = mk_app (mk_var tyn) (List.map mk_var vars) in
-		 let p = mk_var pn in
 		 let value =
 		   let qn' = next_q () in
 		   let rn' = next_r () in
@@ -463,10 +457,8 @@ module Forcing(F : ForcingCond) = struct
 	| Rel n -> begin
 	    fun sigma -> 	    
 	    let (var, tr, cond) = find_rel sigma (pred n) in
-	    let pn = next_p () in let p = mk_var pn in
 	    let restrict = restriction tr (fun sigma -> cond) p in
-	      mk_cond_lam pn (return condition_type) 
-	        (simpl (mk_app restrict [return (mkVar (out_name var))])) sigma
+	      simpl (mk_app restrict [return (mkVar (out_name var))]) sigma
 	  end
 
 	| App (f, args) when f = Lazy.force coq_app -> 
@@ -506,7 +498,7 @@ module Forcing(F : ForcingCond) = struct
 	       (mk_cond_lam sn (mk_appc coq_subp [mk_var rn])
 		(mk_var sn))) 
 	  in
-	    mk_cond_lam pn (return condition_type) (mk_pair term restr)
+	    mk_pair term restr
     in
     let term' = trans c [] in
     let term' = mkApp (term', [|p []|]) in
