@@ -25,14 +25,14 @@ Section Test.
   Notation sheaf := (@sheaf nat nat_condition).
   Notation sheafC := (@sheafC nat nat_condition).
 
-  Obligation Tactic := program_simpl; auto with forcing.
+  Obligation Tactic := idtac. (* program_simpl; auto with forcing. *)
 
   Force foo at p := (forall (f : nat -> Prop) (x : nat), f x).
 
 Next Obligation. 
-  intros. 
+  intros. auto with forcing. destruct r, r4, q6, q. simpl in *. eauto with arith.
   unfold ι. clear_subset_proofs. 
-  specialize (H r4 s3 arg2).
+  specialize (H r4 s3 arg2).s
   unfold foo_obligation_2, eq_type in H; simpl in *. 
   unfold Init.subp in *; destruct_exists. simpl in *.
   unfold foo_obligation_1 in H. simpl in H. revert H; clear_subset_proofs.
