@@ -27,7 +27,7 @@ Section Test.
 
   Obligation Tactic := program_simpl; auto with forcing.
 
-  Force foo at p := (forall (f : nat -> Prop) (x : nat), f x).
+  Force foo := (forall (f : nat -> Prop) (x : nat), f x).
 
 Next Obligation. 
   intros. 
