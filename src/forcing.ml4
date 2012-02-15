@@ -145,6 +145,9 @@ module Forcing(F : ForcingCond) = struct
       
   let coq_sheaf =
     mkApp (init_constant ["Forcing";"Init"] "sheaf", condargs)
+
+  let coq_transport =
+    mkApp (init_constant ["Forcing";"Init"] "transport", condargs)
       
   let coq_sheafC =
     mkApp (init_constant ["Forcing";"Init"] "sheafC", condargs)
@@ -360,6 +363,11 @@ module Forcing(F : ForcingCond) = struct
   let mk_dep_pair a b : constr forcing_term =
     mk_appc (Lazy.force coq_dep_pair) [mk_ty_hole; mk_ty_hole; a; b]
 
+  let mk_sheaf_pair p a b : constr forcing_term =
+    mk_appc (Lazy.force coq_dep_pair) 
+    [return (mkProd (Anonymous, mkApp (coq_subp, [| p |]), new_Type ()));
+     mk_appc coq_transport [return p]; a; b]
+
   let rec find_rel sigma n =
     match sigma, n with
     | (x, y, Some cond) :: _, 0 -> (x, y, cond)
@@ -399,7 +407,7 @@ module Forcing(F : ForcingCond) = struct
 	    (mk_appc coq_sheaf [var q])
 	  in
 	  let snd = mk_appc coq_sheafC [mk_var p] in
-	    mk_cond_lam p (return condition_type) (mk_pair fst snd)
+	    mk_cond_lam p (return condition_type) (mk_sheaf_pair (mkVar p) fst snd)
 	    
 	| Prod (na, t, u) -> 
 	  let na = next_anon () in
@@ -444,7 +452,8 @@ module Forcing(F : ForcingCond) = struct
 		       (mk_cond_lam sn (mk_appc coq_subp [mk_var rn'])
 			(mk_app (mk_var fn) [mk_var sn]))))
 		 in 
-		   mk_cond_lam pn (return condition_type) (mk_pair (mk_app ty [p]) value) sigma)
+		   mk_cond_lam pn (return condition_type) 
+		   (mk_sheaf_pair (mkVar pn) (mk_app ty [p]) value) sigma)
 	      
 	| Lambda (na, t, u) -> 
 	  begin fun sigma ->
@@ -549,6 +558,7 @@ module Forcing(F : ForcingCond) = struct
     clear_p (); clear_q (); clear_r (); clear_s (); clear_f (); clear_anon (); clear_ty ();
     let c' = trans c p in
     let sigma, c' = named_to_nameless env sigma c' in
+    let c' = whd_betadeltaiota env sigma c' in
     let dt = Detyping.detype true [] [] c' in
     let dt = meta_to_holes dt in
       sigma, dt

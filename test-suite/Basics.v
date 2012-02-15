@@ -27,7 +27,17 @@ Section Test.
 
   Obligation Tactic := idtac. (* program_simpl; auto with forcing. *)
 
-  Force foo at p := (forall (f : nat -> Prop) (x : nat), f x).
+    Time Force foo at p := (forall (f : nat -> Prop) (x : nat), f x).
+
+Next Obligation. 
+  intros. destruct q1, r1, s1; simpl in *; eauto with forcing. Admitted.
+Next Obligation. 
+  intros. simpl.  reflexivity.  Defined. 
+Next Obligation. 
+  intros. simpl.  reflexivity.  Defined. 
+destruct q1, r1, s1; simpl in *; eauto with forcing. Admitted.
+
+
 
 Next Obligation. 
   intros. auto with forcing. destruct r, r4, q6, q. simpl in *. eauto with arith.
