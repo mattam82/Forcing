@@ -149,6 +149,9 @@ module Forcing(F : ForcingCond) = struct
   let coq_sheafC =
     mkApp (init_constant ["Forcing";"Init"] "sheafC", condargs)
 
+  let coq_transport =
+    mkApp (init_constant ["Forcing";"Init"] "transport", condargs)
+
   let sheaf p =
     mkApp (coq_sheaf, [| p |])
       
@@ -356,6 +359,11 @@ module Forcing(F : ForcingCond) = struct
 
   let mk_dep_pair a b : constr forcing_term =
     mk_appc (Lazy.force coq_dep_pair) [mk_ty_hole; mk_ty_hole; a; b]
+
+  let mk_sheaf_pair p a b : constr forcing_term =
+    mk_appc (Lazy.force coq_dep_pair) 
+    [return (mkProd (Anonymous, mkApp (coq_subp, [| p |]), new_Type ()));
+     mk_appc coq_transport [return p]; a; b]
       
   let rec trans (c : constr) : constr forcing_term =
     let pn = next_p () in
@@ -375,7 +383,7 @@ module Forcing(F : ForcingCond) = struct
       | Prod (na, t, u) -> 
 	let na = next_anon () in
 	let rn = next_r () and qn = next_q () and fn = next_f () and sn = next_s () in
-	let pn = next_p () in
+	let pn' = next_p () in
 	  begin fun sigma ->
 	    let r = mk_var rn sigma in
 	    let t' = trans t (mk_var rn) sigma in
@@ -385,8 +393,8 @@ module Forcing(F : ForcingCond) = struct
 		(mk_var_prod na t' r (interp u' (mk_var rn)))
 	    in
 	    let ty =
-	      mk_cond_lam pn (return condition_type)
-	      (mk_cond_lam qn (mk_appc coq_subp [mk_var pn])
+	      mk_cond_lam pn' (return condition_type)
+	      (mk_cond_lam qn (mk_appc coq_subp [mk_var pn'])
 	       (mk_appc (Lazy.force coq_sig)
 		[fty;
 		 mk_cond_lam fn fty (comm_pi (mk_var fn) na rn t' sn u' (mk_var qn))]))
@@ -396,14 +404,11 @@ module Forcing(F : ForcingCond) = struct
 	      let rn' = next_r () in
 		mk_cond_lam qn' (mk_appc coq_subp [p])
 		  (mk_cond_lam rn' (mk_appc coq_subp [mk_var qn'])
-		     (mk_cond_lam fn (mk_app ty [p; mk_var qn'])
+		     (mk_cond_lam fn (simpl (mk_app ty [p; mk_var qn']))
 			(mk_cond_lam sn (mk_appc coq_subp [mk_var rn'])
 			 (mk_app (mk_var fn) [mk_var sn]))))
 	    in 
-(* 	      (mk_let tyn  *)
-(* 		 ty *)
-(* 	         (fun _ -> mkProd (Anonymous, condition_type, new_Type ())) *)
-		 (mk_pair (simpl (mk_app ty [p])) value) sigma
+	      (mk_pair (simpl (mk_app ty [p])) value) sigma
 	  end
 	    
       | Lambda (na, t, u) -> 

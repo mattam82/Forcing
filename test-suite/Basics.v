@@ -26,8 +26,8 @@ Section Test.
   Notation sheafC := (@sheafC nat nat_condition).
 
   Obligation Tactic := program_simpl; auto with forcing.
-
-  Force foo := (forall (f : nat -> Prop) (x : nat), f x).
+Set Printing Existential Instances.
+Time Force foo := (forall (f : nat -> Prop) (x : nat), f x).
 
 Next Obligation. 
   intros. 
