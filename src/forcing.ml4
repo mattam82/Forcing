@@ -149,6 +149,9 @@ module Forcing(F : ForcingCond) = struct
   let coq_sheafC =
     mkApp (init_constant ["Forcing";"Init"] "sheafC", condargs)
 
+  let coq_transport =
+    mkApp (init_constant ["Forcing";"Init"] "transport", condargs)
+
   let sheaf p =
     mkApp (coq_sheaf, [| p |])
       
@@ -356,12 +359,20 @@ module Forcing(F : ForcingCond) = struct
 
   let mk_dep_pair a b : constr forcing_term =
     mk_appc (Lazy.force coq_dep_pair) [mk_ty_hole; mk_ty_hole; a; b]
-      
-  let rec trans (c : constr) (p : condition forcing_term) : constr forcing_term =
-    let interpretation c p sigma = interp (trans c p sigma) p sigma in
 
-    match kind_of_term c with
-    | Sort s -> 
+  let mk_sheaf_pair p a b : constr forcing_term =
+    mk_appc (Lazy.force coq_dep_pair) 
+    [return (mkProd (Anonymous, mkApp (coq_subp, [| p |]), new_Type ()));
+     mk_appc coq_transport [return p]; a; b]
+      
+  let rec trans (c : constr) : constr forcing_term =
+    let pn = next_p () in
+    let p = mk_var pn in
+    let trans c p = simpl (mk_app (trans c) [p]) in
+    let interpretation c p sigma = interp (trans c p sigma) p sigma in
+    let term =
+      match kind_of_term c with
+      | Sort s -> 
 	let q = next_q () in 
 	let fst = mk_cond_lam q (subpt p) 
 	  (mk_appc coq_sheaf [var q])
@@ -369,10 +380,10 @@ module Forcing(F : ForcingCond) = struct
 	let snd = mk_appc coq_sheafC [p] in
 	  mk_pair fst snd
 
-    | Prod (na, t, u) -> 
+      | Prod (na, t, u) -> 
 	let na = next_anon () in
 	let rn = next_r () and qn = next_q () and fn = next_f () and sn = next_s () in
-	let pn = next_p () in
+	let pn' = next_p () in
 	  begin fun sigma ->
 	    let r = mk_var rn sigma in
 	    let t' = trans t (mk_var rn) sigma in
@@ -382,8 +393,8 @@ module Forcing(F : ForcingCond) = struct
 		(mk_var_prod na t' r (interp u' (mk_var rn)))
 	    in
 	    let ty =
-	      mk_cond_lam pn (return condition_type)
-	      (mk_cond_lam qn (mk_appc coq_subp [mk_var pn])
+	      mk_cond_lam pn' (return condition_type)
+	      (mk_cond_lam qn (mk_appc coq_subp [mk_var pn'])
 	       (mk_appc (Lazy.force coq_sig)
 		[fty;
 		 mk_cond_lam fn fty (comm_pi (mk_var fn) na rn t' sn u' (mk_var qn))]))
@@ -393,17 +404,14 @@ module Forcing(F : ForcingCond) = struct
 	      let rn' = next_r () in
 		mk_cond_lam qn' (mk_appc coq_subp [p])
 		  (mk_cond_lam rn' (mk_appc coq_subp [mk_var qn'])
-		     (mk_cond_lam fn (mk_app ty [p; mk_var qn'])
+		     (mk_cond_lam fn (simpl (mk_app ty [p; mk_var qn']))
 			(mk_cond_lam sn (mk_appc coq_subp [mk_var rn'])
 			 (mk_app (mk_var fn) [mk_var sn]))))
 	    in 
-(* 	      (mk_let tyn  *)
-(* 		 ty *)
-(* 	         (fun _ -> mkProd (Anonymous, condition_type, new_Type ())) *)
-		 (mk_pair (mk_app ty [p]) value) sigma
+	      (mk_pair (simpl (mk_app ty [p])) value) sigma
 	  end
 	    
-    | Lambda (na, t, u) -> 
+      | Lambda (na, t, u) -> 
 	begin 
 	  fun sigma ->
 	    let na = if na = Anonymous then next_anon () else out_name na in
@@ -416,14 +424,14 @@ module Forcing(F : ForcingCond) = struct
 	    in term sigma
 	end
 	  
-    | Rel n -> begin
+      | Rel n -> begin
 	fun sigma -> 
 	  let (var, tr, cond) = List.nth sigma (pred n) in
 	  let restrict = restriction tr (fun sigma -> cond) p in
 	    simpl (mk_app restrict [return (mkVar (out_name var))]) sigma
-      end
+	end
 
-    | App (f, args) when f = Lazy.force coq_app -> 
+      | App (f, args) when f = Lazy.force coq_app -> 
 	let fty = args.(1) and n = args.(2) and m = args.(3) in
 	let na, t, u = destLambda fty in
 	let uxn = interpretation (subst1 n u) p in
@@ -437,27 +445,28 @@ module Forcing(F : ForcingCond) = struct
 	     (fun sigma -> replace_vars [out_name na, np sigma] (u sigma));
 	     mk_hole; trans m p]
 
-    | App (f, args) when f = Lazy.force coq_conv -> 
+      | App (f, args) when f = Lazy.force coq_conv -> 
 	let t = args.(0) and u = args.(1) and m = args.(2) in
 	  mk_appc (Lazy.force coq_eq_rect)
 	    [interpretation u p; return (Lazy.force coq_identity); 
 	     interpretation t p; mk_hole; trans m p]
 	
-    | App (f, args) when f = Lazy.force coq_sum -> assert false
+      | App (f, args) when f = Lazy.force coq_sum -> assert false
 
-    | App (f, args) -> 
+      | App (f, args) -> 
 	mk_app (trans f p) (p :: List.map (fun x -> trans x p) (Array.to_list args))
 
-    | _ -> 
+      | _ -> 
 	let term = mk_cond_lam (next_q ()) (mk_appc coq_subp [p]) (return c) in
 	let restr = 
 	  let qn = next_q () and rn = next_r () and sn = next_s () in
 	    mk_cond_lam qn (mk_appc coq_subp [p])
-	      (mk_cond_lam rn (mk_appc coq_subp [mk_var qn])
-		 (mk_cond_lam sn (mk_appc coq_subp [mk_var rn])
-		    (mk_var sn))) 
+	    (mk_cond_lam rn (mk_appc coq_subp [mk_var qn])
+	     (mk_cond_lam sn (mk_appc coq_subp [mk_var rn])
+	      (mk_var sn))) 
 	in
 	  mk_pair term restr
+    in mk_cond_lam pn (return condition_type) term
 
   let named_to_nameless env sigma c =
     let sigmaref = ref sigma in
@@ -490,27 +499,26 @@ module Forcing(F : ForcingCond) = struct
 	 | _ -> assert false)
     | c -> Glob_term.map_glob_constr meta_to_holes c
 
-  let translate c p env sigma = 
+  let translate c env sigma = 
     clear_p (); clear_q (); clear_r (); clear_s (); clear_f (); clear_anon (); clear_ty ();
-    let c' = trans c p [] in
+    let c' = trans c [] in
     let sigma, c' = named_to_nameless env sigma c' in
     let dt = Detyping.detype true [] [] c' in
     let dt = meta_to_holes dt in
       sigma, dt
 
-  let tac i c p = fun gs ->
+  let tac i c = fun gs ->
     let env = pf_env gs and sigma = Refiner.project gs in
-    let evars, term' = translate c p env sigma in
+    let evars, term' = translate c env sigma in
     let evs = ref evars in
     let term'', ty = Subtac_pretyping.interp env evs term' None in
       tclTHEN (tclEVARS !evs) 
       (letin_tac None (Name i) term'' None onConcl) gs
 
-  let command id c p =
+  let command id c =
     let env = Global.env () and sigma = Evd.empty in
     let c = Constrintern.interp_constr sigma env c in
-    let p = Constrintern.interp_constr sigma env p in
-    let evars, term' = translate c (return p) env sigma in
+    let evars, term' = translate c env sigma in
     let evs = ref evars in
     let term'', ty = Subtac_pretyping.interp env evs term' None in
     let evm' = Subtac_utils.evars_of_term !evs Evd.empty term'' in
@@ -532,9 +540,9 @@ end
 module NatForcing = Forcing(NatCond)
 
 TACTIC EXTEND nat_forcing
-[ "nat_force" constr(c) "at" constr(p) "as" ident(i) ] -> [ NatForcing.tac i c (NatForcing.return p) ]
+[ "nat_force" constr(c) "as" ident(i) ] -> [ NatForcing.tac i c ]
 END
 
 VERNAC COMMAND EXTEND Force
-[ "Force" ident(i) "at" constr(p) ":=" constr(c)  ] -> [ NatForcing.command i c p ]
+[ "Force" ident(i) ":=" constr(c)  ] -> [ NatForcing.command i c ]
 END
