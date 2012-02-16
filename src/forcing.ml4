@@ -1,4 +1,4 @@
-(* -*- compile-command: "COQBIN=~/research/coq/git/bin/ make -k -C .. src/forcing_plugin.cma src/forcing_plugin.cmxs" -*- *)
+(* -*- compile-command: "COQBIN=~/research/coq/trunk/bin/ make -k -C .. src/forcing_plugin.cma src/forcing_plugin.cmxs" -*- *)
 (************************************************************************)
 (*  v      *   The Coq Proof Assistant  /  The Coq Development Team     *)
 (* <O___,, * CNRS-Ecole Polytechnique-INRIA Futurs-Universite Paris Sud *)
@@ -128,29 +128,27 @@ let coq_app = lazy (init_constant ["Forcing";"Init"] "app_annot")
 let coq_conv = lazy (init_constant ["Forcing";"Init"] "conv_annot")
 
 module type ForcingCond = sig
-  
+  val cond_mod : string list
   val condition_type : types
-  val condition_record : constr
   val condition_order : constr
-
 end
 
 module Forcing(F : ForcingCond) = struct
   open F
-    
-  let condargs = [| condition_type; condition_record |]
 
-  let coq_subp =
-    mkApp (init_constant ["Forcing";"Init"] "subp", condargs)
-      
-  let coq_sheaf =
-    mkApp (init_constant ["Forcing";"Init"] "sheaf", condargs)
-      
-  let coq_sheafC =
-    mkApp (init_constant ["Forcing";"Init"] "sheafC", condargs)
+  let forcing_const = init_constant cond_mod
 
-  let coq_transport =
-    mkApp (init_constant ["Forcing";"Init"] "transport", condargs)
+  let coq_subp = forcing_const "subp"
+
+  let coq_subp_proj = forcing_const "subp_proj"
+      
+  let coq_sheaf = forcing_const "sheaf"
+      
+  let coq_sheafC = forcing_const "sheafC"
+
+  let coq_transport = forcing_const "transport"
+
+  let coq_iota = forcing_const "iota"
 
   let sheaf p =
     mkApp (coq_sheaf, [| p |])
@@ -160,27 +158,14 @@ module Forcing(F : ForcingCond) = struct
       
   let subp p = 
     mkApp (coq_subp, [| p |])
-      
+
   let cond_pred y = 
     mkLambda (name "x", condition_type, mkApp (condition_order, [| mkRel 1; lift 1 y |]))
       
-  let sP p q = 
-    mkApp (Lazy.force coq_proj1_sig, [|condition_type; cond_pred p; q|])
+  let sP p q = mkApp (coq_subp_proj, [| p; q |])
 
   let newevar ty env evars = 
     Evarutil.new_evar evars env ty
-
-(*   type 'a term = env -> evar_map -> 'a * evar_map *)
-
-(*   let mk_prod na t b : constr term = fun env sigma -> *)
-(*     let t', sigma = t env sigma in *)
-(*     let b', sigma = b (push_rel (na, None, t') env) sigma in *)
-(*       mkProd (na, t', b'), sigma *)
-
-(*   let mk_lam na t b : constr term = fun env sigma -> *)
-(*     let t', sigma = t env sigma in *)
-(*     let b', sigma = b (push_rel (na, None, t') env) sigma in *)
-(*       mkLambda (na, t', b'), sigma *)
 
   let lookup_rel na env =
     try 
@@ -188,69 +173,11 @@ module Forcing(F : ForcingCond) = struct
 		       if na = na' then (i, tup) else raise (Failure "not found"))
       1 env
     with Failure _ -> raise Not_found
-
-(*   let mk_var s : constr term = fun env sigma -> *)
-(*     let (n, _) = lookup_rel (name s) (rel_context env) in mkRel n, sigma *)
-
-(*   let mk_evar ty : constr term = fun env sigma -> *)
-(*     let sigma', ev = newevar ty env sigma in *)
-(*       ev, sigma' *)
-
-(*   let bind (x : 'a term) (f : 'a -> 'b term) : 'b term = fun env sigma -> *)
-(*     let x', sigma = x env sigma in *)
-(*       f x' env sigma *)
-
-(*   let mk_hole : constr term =  *)
-(*     bind (mk_evar (new_Type ())) mk_evar *)
-
-(*   let return (t : 'a) : 'a term = fun _ sigma -> t, sigma *)
-
-(*   let eval_term (t : 'a term) (e : env) (s : evar_map) : 'a * evar_map = *)
-(*     t e s *)
-
-(*   let mk_app t us : constr term = fun env sigma -> *)
-(*     let t', sigma = t env sigma in *)
-(*     let sigma, us' =  *)
-(*       List.fold_left (fun (sigma, args) arg -> *)
-(* 			let arg', sigma = arg env sigma in *)
-(* 			  sigma, arg' :: args) *)
-(* 	(sigma, []) us *)
-(*     in *)
-(*       mkApp (t', Array.of_list (List.rev us')), sigma *)
-
-(*   let mk_appc t us = mk_app (return t) us *)
 	
   type condition = constr
 
   (* Variables environment: the translated variable index, translated type and condition index *)
   type env = (name * types * condition) list
-
-(*   type 'a forcing_term = env -> 'a term *)
-
-(*   let lift_sigma sigma = *)
-(*     map (fun (ty, var, cond) -> lift 1 ty, lift 1 var, lift 1 cond) sigma *)
-
-(*   let mk_cond_prod na t b = fun sigma env evars -> *)
-(*     let sigma' = lift_sigma sigma in *)
-(*       mk_prod na (t sigma) (fun env evars -> b sigma' env evars) env evars *)
-
-(*   let mk_var_prod na t t' cond b = fun sigma env evars -> *)
-(*     let sigma' = (mkRel 1, t, cond) :: lift_sigma sigma in *)
-(*       mk_prod na (t' sigma) (fun env evars -> b sigma' env evars) env evars *)
-
-(*   let mk_cond_lam na t b = fun sigma env evars -> *)
-(*     let sigma' = lift_sigma sigma in *)
-(*       mk_lam na (t sigma) (fun env evars -> b sigma' env evars) env evars *)
-
-(*   let mk_var_lam na t t' cond b = fun sigma env evars -> *)
-(*     let sigma' = (mkRel 1, t, cond) :: lift_sigma sigma in *)
-(*       mk_lam na (t' sigma) (fun env evars -> b sigma' env evars) env evars *)
-
-(*   let bind_forcing (x : 'a forcing_term) (f : 'a -> 'b forcing_term) : 'b forcing_term = *)
-(*     fun sigma env evars -> *)
-(*       bind (x sigma) (fun x env evars -> f x sigma env evars) env evars *)
-	
-(*   let return_forcing (x : 'a) : 'a forcing_term = fun _ _ evars -> x, evars *)
 
   type 'a forcing_term = env -> 'a
 
@@ -353,7 +280,8 @@ module Forcing(F : ForcingCond) = struct
      )
     )
 
-      
+  let iota p = mk_appc coq_iota [mk_hole; p; mk_hole; mk_hole]
+    
   let mk_pair a b : constr forcing_term =
     mk_appc (Lazy.force coq_nondep_pair) [mk_ty_hole; mk_ty_hole; a; b]
 
@@ -406,7 +334,7 @@ module Forcing(F : ForcingCond) = struct
 		  (mk_cond_lam rn' (mk_appc coq_subp [mk_var qn'])
 		     (mk_cond_lam fn (simpl (mk_app ty [p; mk_var qn']))
 			(mk_cond_lam sn (mk_appc coq_subp [mk_var rn'])
-			 (mk_app (mk_var fn) [mk_var sn]))))
+			   (mk_app (mk_var fn) [mk_var sn]))))
 	    in 
 	      (mk_pair (simpl (mk_app ty [p])) value) sigma
 	  end
@@ -511,7 +439,7 @@ module Forcing(F : ForcingCond) = struct
     let env = pf_env gs and sigma = Refiner.project gs in
     let evars, term' = translate c env sigma in
     let evs = ref evars in
-    let term'', ty = Subtac_pretyping.interp env evs term' None in
+    let term'', ty = Pretyper.interp env evs term' None in
       tclTHEN (tclEVARS !evs) 
       (letin_tac None (Name i) term'' None onConcl) gs
 
@@ -520,7 +448,7 @@ module Forcing(F : ForcingCond) = struct
     let c = Constrintern.interp_constr sigma env c in
     let evars, term' = translate c env sigma in
     let evs = ref evars in
-    let term'', ty = Subtac_pretyping.interp env evs term' None in
+    let term'', ty = Pretyper.interp env evs term' None in
     let evm' = Subtac_utils.evars_of_term !evs Evd.empty term'' in
     let evm' = Subtac_utils.evars_of_term !evs evm' ty in
     let evars, _, def, ty = Eterm.eterm_obligations env id !evs evm' 0 term'' ty in
@@ -532,8 +460,8 @@ end
 (* For naturals ordered by le *)
   
 module NatCond : ForcingCond = struct
+  let cond_mod = ["Forcing";"Init";"NatForcing"]
   let condition_type = init_constant ["Coq";"Init";"Datatypes"] "nat" 
-  let condition_record = init_constant ["Forcing";"Init"] "nat_condition"
   let condition_order = init_constant ["Coq";"Init";"Peano"] "le"
 end
 

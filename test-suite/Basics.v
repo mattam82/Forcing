@@ -1,74 +1,80 @@
 Require Import Forcing.
 Require Import RelationClasses.
 
-Definition proj_sub {p : nat} : subp p -> nat :=
-  fun x => proj1_sig x.
-
-Coercion ι_refl : subp >-> subp.
-
-Hint Extern 0 (_ = _) => apply ι_ι_refl : forcing.
-Hint Extern 0 (_ <= _) => apply reflexivity : forcing. 
-
-Notation " '{Σ' x , y } " := (exist _ x y).
-Notation " '(Σ' x , y ) " := (existT _ x y).
-
-Lemma ι_ι_refl {p} (q : subp p) : subp (` q) -> subp (` (ι_refl q)).
-Proof. intros. exists (` q). reflexivity. Defined.
+Notation " '{Σ' x , y } " := (exist x y).
+Notation " '(Σ' x , y ) " := (existT x y).
 
 Section Test.
 
-  Variable p : nat.
+  Import NatForcing.
+  Import NatCondition.
+   Open Scope forcing_scope.
 
-  Hint Extern 1 (` ?x <= _) => apply (proj2_sig (ι x)) : forcing.
+Lemma subp_proof2 p (q : subp p) : ` q <= p. apply subp_proof. Defined.
+Hint Resolve subp_proof2 : forcing.
 
-  Notation subp := (@subp nat nat_condition).
-  Notation sheaf := (@sheaf nat nat_condition).
-  Notation sheafC := (@sheafC nat nat_condition).
+Ltac forcing_le :=
+  match goal with
+    |- ` ?x <= ?y => 
+      match type of x with
+        subp ?r => transitivity r
+      end
+    | |- subp_proj ?x <= ?y => 
+      match type of x with
+        subp ?r => transitivity r
+      end
+  end.
+
+Hint Extern 2 (_ <= _) => forcing_le : forcing.
 
   Obligation Tactic := program_simpl; auto with forcing.
 Set Printing Existential Instances.
+Print HintDb forcing.
 Time Force foo := (forall (f : nat -> Prop) (x : nat), f x).
 
 Next Obligation. 
-  intros. 
+  intros. destruct r. simpl in *.
   unfold ι. clear_subset_proofs. 
   specialize (H r4 s3 arg2).
   unfold foo_obligation_2, eq_type in H; simpl in *. 
-  unfold Init.subp in *; destruct_exists. simpl in *.
+  unfold subp in *; destruct_exists. simpl in *.
   unfold foo_obligation_1 in H. simpl in H. revert H; clear_subset_proofs.
   intros. rewrite <- H.
   simpl. unfold ι; simpl; clear_subset_proofs. reflexivity.
 Defined.
 
 Next Obligation. 
-  unfold foo_obligation_2, eq_type in *; simpl in *.
-  clear_subset_proofs. 
-  rewrite (H  {Σ` r1, eqH}). clear_subset_proofs. reflexivity.
+  unfold foo_obligation_2, eq_type in *; simpl in *. clear f.
+  unfold subp_proj in *.
+  clear_subset_proofs. unfold foo_obligation_1 in H. 
+  generalize (H (@exist _ (fun r' => r' <= ` r) (` r1) eqH0) s1 arg1). 
+  simpl in *. unfold subp_proj in *. clear_subset_proofs. intros. rewrite <- H0. reflexivity.
 Defined.
 
 Obligation Tactic := idtac.
 Next Obligation. 
   intros. simpl proj1_sig.
   unfold foo_obligation_11, eq_type in arg. simpl in arg.
+  unfold subp_proj in *.
   destruct arg. clear_subset_proofs. specialize (e r4 s3 arg2).
-  revert e; clear_subset_proofs. intros.
-  rewrite <- e. simpl.  
-  unfold ι. clear_subset_proofs. simpl. reflexivity.
+  revert e; clear_subset_proofs. simpl. intros.
+  rewrite <- e. simpl. 
+  unfold ι. unfold subp_proj in *. clear_subset_proofs. simpl. reflexivity.
 Defined.
 
 Next Obligation. 
-  intros. clear. destruct r, s, s3; simpl in *; eauto with arith forcing.
+  intros. clear. eauto with forcing. 
 Defined. 
 
-
 Next Obligation. 
-  intros; clear. destruct r, s; simpl in *; eauto with arith forcing. Defined.
+  intros; clear. eauto with forcing. Defined.
 Next Obligation. 
-  intros; clear. destruct s1, s; simpl in *; eauto with arith forcing. Defined.
+  intros; clear. eauto with arith forcing. Defined.
 Next Obligation. 
   intros; clear. 
   unfold foo_obligation_11, eq_type in *; simpl in *.
-  destruct arg. simpl. clear_subset_proofs. specialize (e {Σ` r1, eqH} s1 arg1).
+  destruct arg. simpl. unfold subp_proj in *. clear_subset_proofs. 
+  specialize (e {Σ` r1, eqH} s1 arg1).
   simpl in e. destruct r1; clear_subset_proofs. simpl in *. revert e. clear_subset_proofs.
   intros. rewrite <- e. pi.
 Defined.
@@ -80,8 +86,8 @@ Next Obligation.
 Axiom prod_extensionality : forall A (B B' : A -> Type), (∀ x : A, B x = B' x) -> (∀ x : A, B x) = (∀ x : A, B' x).
 
   do 2 (apply prod_extensionality; intros). clear_subset_proofs. pi. Defined.
-Next Obligation. 
-  intros; clear. destruct s, r7; simpl in *; eauto with arith forcing.
+Next Obligation. intros.
+  clear. destruct s, r7; simpl in *; eauto with arith forcing.
 Defined.
 
 Print foo.
