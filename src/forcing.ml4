@@ -439,7 +439,7 @@ module Forcing(F : ForcingCond) = struct
     let env = pf_env gs and sigma = Refiner.project gs in
     let evars, term' = translate c env sigma in
     let evs = ref evars in
-    let term'', ty = Pretyper.interp env evs term' None in
+    let term'', ty = Subtac_pretyping.interp env evs term' None in
       tclTHEN (tclEVARS !evs) 
       (letin_tac None (Name i) term'' None onConcl) gs
 
@@ -448,7 +448,7 @@ module Forcing(F : ForcingCond) = struct
     let c = Constrintern.interp_constr sigma env c in
     let evars, term' = translate c env sigma in
     let evs = ref evars in
-    let term'', ty = Pretyper.interp env evs term' None in
+    let term'', ty = Subtac_pretyping.interp env evs term' None in
     let evm' = Subtac_utils.evars_of_term !evs Evd.empty term'' in
     let evm' = Subtac_utils.evars_of_term !evs evm' ty in
     let evars, _, def, ty = Eterm.eterm_obligations env id !evs evm' 0 term'' ty in
