@@ -131,10 +131,17 @@ Module Type Condition.
 
 End Condition.
 
+Class ForcingOp {A : Type} (a : A) := {
+  forcing_traduction_type : Type;
+  forcing_traduction : forcing_traduction_type
+}.
+
 Require Import Le.
 Module NatCondition <: Condition.
   Definition P := nat.
+
   Definition le := Peano.le.
+
   Instance le_pre : PreOrder le.
   Proof. split; red; intros. apply le_n. eapply le_trans; eauto. Qed.
 

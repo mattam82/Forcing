@@ -1,4 +1,4 @@
-(* -*- compile-command: "COQBIN=~/research/coq/trunk/bin/ make -k -C .. src/forcing_plugin.cma src/forcing_plugin.cmxs" -*- *)
+(* -*- compile-command: "COQBIN=~/research/coq/git/bin/ make -k -C .. src/forcing_plugin.cma src/forcing_plugin.cmxs" -*- *)
 (************************************************************************)
 (*  v      *   The Coq Proof Assistant  /  The Coq Development Team     *)
 (* <O___,, * CNRS-Ecole Polytechnique-INRIA Futurs-Universite Paris Sud *)
@@ -117,15 +117,21 @@ let coq_dep_pair = lazy (Coqlib.coq_constant "sum" ["Init";"Specif"] "existT")
 let coq_pi1 = lazy (Coqlib.coq_constant "sum" ["Init";"Specif"] "projT1")
 let coq_pi2 = lazy (Coqlib.coq_constant "sum" ["Init";"Specif"] "projT2")
 
-let init_constant mods reference = constr_of_global (Coqlib.find_reference "Forcing" mods reference)
-let coq_nondep_prod = lazy (init_constant ["Forcing";"Init"] "prodT")
-let coq_nondep_pair = lazy (init_constant ["Forcing";"Init"] "pairT")
+let init_reference = Coqlib.find_reference "Forcing"
+let init_constant mods reference = constr_of_global (init_reference mods reference)
 
-let coq_eqtype = lazy (init_constant ["Forcing";"Init"] "eq_type")
+let forcing_constant c = lazy (init_constant ["Forcing";"Init"] c)
+let coq_nondep_prod = forcing_constant "prodT"
+let coq_nondep_pair = forcing_constant "pairT"
+
+let coq_eqtype = forcing_constant "eq_type"
 let coq_eqtype_ref = lazy (init_reference ["Forcing";"Init"] "eq_type")
 
-let coq_app = lazy (init_constant ["Forcing";"Init"] "app_annot")
-let coq_conv = lazy (init_constant ["Forcing";"Init"] "conv_annot")
+let coq_app = forcing_constant "app_annot"
+let coq_conv = forcing_constant "conv_annot"
+let coq_forcing_op = lazy (init_reference ["Forcing";"Init"] "ForcingOp")
+let coq_forcing_op_type = forcing_constant "forcing_traduction_type"
+let coq_forcing_op_trad = forcing_constant "forcing_traduction"
 
 module type ForcingCond = sig
   val cond_mod : string list
@@ -150,6 +156,17 @@ module Forcing(F : ForcingCond) = struct
 
   let coq_iota = forcing_const "iota"
 
+  let forcing_class = Typeclasses.class_info (Lazy.force coq_forcing_op)
+
+  let find_forcing_op c =
+    let ty = Typing.type_of (Global.env ()) Evd.empty c in
+    let impl = constr_of_global forcing_class.Typeclasses.cl_impl in
+    let cstr = mkApp (impl, [| ty ; c |]) in
+    let (_, inst) = Typeclasses.resolve_one_typeclass (Global.env ()) Evd.empty cstr in
+    let proj f = mkApp (f, [| ty; c; inst |]) in
+      (proj (Lazy.force coq_forcing_op_type),
+       proj (Lazy.force coq_forcing_op_trad))
+      
   let sheaf p =
     mkApp (coq_sheaf, [| p |])
       
@@ -292,6 +309,8 @@ module Forcing(F : ForcingCond) = struct
     mk_appc (Lazy.force coq_dep_pair) 
     [return (mkProd (Anonymous, mkApp (coq_subp, [| p |]), new_Type ()));
      mk_appc coq_transport [return p]; a; b]
+
+
       
   let rec trans (c : constr) : constr forcing_term =
     let pn = next_p () in
@@ -443,7 +462,8 @@ module Forcing(F : ForcingCond) = struct
       tclTHEN (tclEVARS !evs) 
       (letin_tac None (Name i) term'' None onConcl) gs
 
-  let command id c =
+  (** Define [id] as the translation of [c] (with term and restriction map) *)
+  let command id ?hook c =
     let env = Global.env () and sigma = Evd.empty in
     let c = Constrintern.interp_constr sigma env c in
     let evars, term' = translate c env sigma in
@@ -452,7 +472,34 @@ module Forcing(F : ForcingCond) = struct
     let evm' = Subtac_utils.evars_of_term !evs Evd.empty term'' in
     let evm' = Subtac_utils.evars_of_term !evs evm' ty in
     let evars, _, def, ty = Eterm.eterm_obligations env id !evs evm' 0 term'' ty in
-      ignore (Subtac_obligations.add_definition id ~term:def ty evars)
+    let hook = Option.map (fun f -> f c) hook in
+      ignore (Subtac_obligations.add_definition id ~term:def ?hook ty evars)
+
+  open Decl_kinds
+  open Global
+
+  let forcing_operator id c =
+    let hook ty _ gr = 
+      let ax = 
+	Declare.declare_constant id (ParameterEntry (None, ty, None), IsAssumption Logical)
+      in
+      let body, types = 
+	Typeclasses.instance_constructor forcing_class 
+        [ty; mkConst ax; type_of_global gr; constr_of_global gr]
+      in
+      let ce = 
+	{ const_entry_body = Option.get body;
+	  const_entry_secctx = None;
+	  const_entry_type = Some types;
+	  const_entry_opaque = false }
+      in
+      let inst = 
+	Declare.declare_constant (add_suffix id "_inst")
+	(DefinitionEntry ce, IsDefinition Instance)
+      in
+	Typeclasses.add_instance
+	(Typeclasses.new_instance forcing_class None false (ConstRef inst))	  
+    in command (add_suffix id "_trans") c ~hook
 
 end
 
@@ -469,6 +516,10 @@ module NatForcing = Forcing(NatCond)
 
 TACTIC EXTEND nat_forcing
 [ "nat_force" constr(c) "as" ident(i) ] -> [ NatForcing.tac i c ]
+END
+
+VERNAC COMMAND EXTEND Forcing_operator
+[ "Forcing" "Operator" ident(i) ":" constr(c)  ] -> [ NatForcing.forcing_operator i c ]
 END
 
 VERNAC COMMAND EXTEND Force

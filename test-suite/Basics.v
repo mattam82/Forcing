@@ -30,6 +30,15 @@ Hint Extern 2 (_ <= _) => forcing_le : forcing.
   Obligation Tactic := program_simpl; auto with forcing.
 Set Printing Existential Instances.
 Print HintDb forcing.
+
+Forcing Operator later : (Type -> Type).
+
+Print later_inst.
+
+Time Force foo := (forall X : Set, X).
+
+
+
 Time Force foo := (forall (f : nat -> Prop) (x : nat), f x).
 
 Next Obligation. 
