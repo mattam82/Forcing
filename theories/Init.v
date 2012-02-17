@@ -17,25 +17,7 @@ Definition app_annot {T} {U : T -> Type} {N : T} (V : U N) : U N := V.
 Definition eq_type {A B : Type} (p : A = B) (a : A) (b : B) := 
   eq_rect _ (fun X => X) a _ p = b.
 
-(** Basic definitions for forcing *)
-
-(** Forcing conditions come with a preorder *)
-
-Class Condition (A : Type) := {
-  le : relation A ;
-  le_pre :> PreOrder le ;
-  le_pi : forall x y (p q : le x y), p = q
-}.
-
-Delimit Scope forcing_scope with forcing.
-
-Notation " x <= y " := (le x y) : forcing_scope.
-
-Require Import Le.
-Instance nat_condition : Condition nat := {| le := Peano.le |}.
-Proof. split; red; intros. apply le_n. eapply le_trans; eauto.
-  intros. apply proof_irrelevance.
-Defined.
+(* Eq_rect lemmas *)
 
 Lemma eq_rect_irrel A (x : A) P (px : P x) y prf (py : P y) : 
   px = eq_rect y P py x (symmetry prf) -> eq_rect x P px y prf = py.
@@ -77,9 +59,95 @@ Proof. destruct prf. simpl. reflexivity. Qed.
 (*   eq_rect f (fun f => P f x) (pf x) g prf.  *)
 (* Proof. destruct prf. simpl. reflexivity. Qed. *)
 
+Lemma equal_existT {A} {P : A -> Type} {p : A} {x y : P p} : x = y -> (existT p x = existT p y).
+Proof. now intros ->. Defined.
 
-Section Forcing.
-  Context {P:Type} `{C : Condition P}.
+Lemma simplification_existT2' A (P : A -> Type) (p : A) (x y : P p) 
+  (B : forall H : (existT p x = existT p y), Type) :
+  (forall H : x = y, B (equal_existT H)) -> (forall H, B H).
+Proof. intros H E. depelim E. unfold equal_existT, eq_ind_r in H. 
+  specialize (H eq_refl). now simpl in H. Defined.
+
+Implicit Arguments exist [[A] [P]].
+
+Lemma equal_exist {A} {P : A -> Prop} {p : A} {x y : P p} : x = y -> (exist p x = exist p y).
+Proof. now intros ->. Defined.
+
+Require Import EqdepFacts.
+
+Lemma simplification_exist A (P : A -> Prop) (p : A) (x y : P p) 
+  (B : forall H : (exist p x = exist p y), Type) :
+  (forall H : x = y, B (equal_exist H)) -> (forall H, B H).
+Proof. intros H E. pose (eq_sig_snd E). pose (proof_irrelevance _ (eq_sig_fst E) eq_refl). 
+  rewrite e0 in e. simpl in e. subst x. specialize (H eq_refl). 
+  pose (proof_irrelevance _ (equal_exist eq_refl) E). rewrite <- e. assumption.
+Defined.
+
+Lemma inj_exist {B} (R : B -> Prop) (b : B) (x y : R b) (prf : exist b x = exist b y) : x = y.
+Proof. pi. Defined.
+
+Lemma eq_rect_exist {B} {R : B -> Prop} {Q : sig R -> Type} (b : B) (x y : R b) (p : Q (exist b x)) 
+  (prf : exist b x = exist b y) :
+  eq_rect (exist b x) Q p (exist b y) prf = eq_rect x (fun prf => Q (exist b prf)) p y (inj_exist _ _ _ _ prf).
+Proof. revert prf. apply simplification_exist. intros H. subst y. simpl. unfold inj_exist.
+  set(foo:=proof_irrelevance (R b) x x). depelim foo. rewrite <- x. simpl. reflexivity.
+Qed.
+
+Ltac simpl_eq_rect_exist :=
+ match goal with
+   |- context[ eq_rect (exist ?q ?H) ?P ?p (exist ?q ?H') ?prf ] => 
+     rewrite (eq_rect_exist (Q:=P) q H H' p prf)
+ end.
+
+Lemma eq_rect_pi {A : Prop} {Q : A -> Type} (p q : A) (x : forall x : A, Q x) :
+  eq_rect p Q (x p) q (proof_irrelevance A p q) = x q.
+Proof. set(foo:=proof_irrelevance A p q). destruct foo. simpl. reflexivity. Qed.
+
+(* To control backtracking during proof search *)
+Class Tried (P : Type).
+
+Ltac not_tried p :=
+  match goal with
+    | [ H : Tried ?Q |- _ ] =>
+      match Q with 
+        p => fail 2
+      end
+    | _ => idtac
+  end.
+
+
+(** Basic definitions for forcing *)
+
+(** Forcing conditions come with a preorder *)
+
+Module Type Condition. 
+  Parameter P : Type.
+  Parameter le : relation P.
+  Declare Instance le_pre : PreOrder le.
+  Parameter le_pi : forall x y (p q : le x y), p = q.
+
+  Delimit Scope forcing_scope with forcing.
+  Notation " x <= y " := (le x y) : forcing_scope.
+
+End Condition.
+
+Require Import Le.
+Module NatCondition <: Condition.
+  Definition P := nat.
+  Definition le := Peano.le.
+  Instance le_pre : PreOrder le.
+  Proof. split; red; intros. apply le_n. eapply le_trans; eauto. Qed.
+
+  Lemma le_pi : forall x y (p q : le x y), p = q.
+  Proof. intros. apply proof_irrelevance. Defined.
+
+  Delimit Scope forcing_scope with forcing.
+  Notation " x <= y " := (le x y) : forcing_scope.
+
+End NatCondition.
+
+Module Forcing(F : Condition).
+  Import F.
 
   Local Open Scope forcing_scope.
 
@@ -87,16 +155,163 @@ Section Forcing.
 
   (** [subp] also forms valid forcing conditions *)
 
-(*   Global Program Instance subp_cond p : Condition (subp p) :=  *)
-(*   { le x y := `x <= y }. *)
+  Program Definition subp_intro {p : P} (q : P) (prf : q <= p) : subp p := q.
 
-(*   Next Obligation. *)
-(*   Proof. constructor; red. intro x; apply reflexivity. *)
-(*     intros x y z; apply transitivity. *)
-(*   Defined. *)
+  Definition subp_proj {p : P} (q : subp p) : P := ` q.
+  Global Coercion subp_proj : subp >-> P.
+  
+  Lemma subp_proof {p} (q : subp p) : (subp_proj q) <= p.
+  Proof. apply (proj2_sig q). Defined.
+  Hint Resolve subp_proof.
+    
 
-(*   Next Obligation. *)
-(*   Proof. apply le_pi. Defined.  *)
+  (** We define an overloaded [ι] operator to infer canonical 
+     coercions of conditions into larger subsets. *)
+  
+  Class Iota p (x : subp p) q := { iota : subp q ;
+    iota_identity : @eq P x iota
+  }.
+  
+  Global Implicit Arguments iota [[p] [q] [Iota]].
+
+(*  
+  (** The identity, in case no coercion was needed in fact *)
+  Global Program Instance iota_refl p (q : subp p) : Iota p q p := { iota := (q : P) }.
+  
+  (** Self-indexing [q : P p] then [q : P q] *)
+  Global Program Instance iota_lift p (q : subp p) : Iota p q q := { iota := (q : P) }.
+  Next Obligation. reflexivity. Defined.
+    
+  (** [q : P p] so forall [r : P q] [r : P p] as well *)
+  Global Program Instance iota_pi {p} (q : subp p) : Iota q (iota q) p := 
+    { iota := (q : P) }.
+      
+  (** [q : P p] so forall [r : P q] [r : P p] as well *)
+  Global Program Instance iota_pi_inv {p} (q : subp p) (r : subp q) : Iota q r p :=
+    { iota := (r : P) }.
+
+  Next Obligation. now transitivity q. Defined.
+
+  (** Iotas compose *)
+  Program Definition iota_compose {p sp q r} (pq : Iota p sp q) (qr : Iota q (iota sp) r) : Iota p sp r :=
+    {| iota := iota (iota sp) |}.
+
+  Next Obligation. now repeat rewrite <- iota_identity. Defined.
+
+  (**  In case [iota] does not change the type, it's the identity *)
+  Lemma iota_iota_refl {p} (q : subp p) : iota (iota q) = q.
+  Proof. destruct q. simpl. pi. Qed.
+
+  (** [iota_compose] is always applicable, restrict it to cases where both [p] and [r] 
+     are ground and check for loops. *)
+  Ltac apply_iota_compose p sp q :=
+    progress (is_evar p || is_evar q || 
+      not_tried (Iota p sp q) ;
+      set(foo:=Build_Tried (Iota p sp q)) ;
+      eapply iota_compose). 
+
+  Hint Extern 3 (Iota ?p ?sp ?q) => apply_iota_compose p sp q : typeclass_instances.
+*)
+  Hint Extern 0 (_ <= _) => apply reflexivity : forcing. 
+  Hint Extern 0 (_ = _) => try f_equal ; apply le_pi : forcing.
+  
+(*   Goal forall p sp q r (iop : Iota p sp q), Iota q (iota sp) r -> Iota p sp r. *)
+(*   Proof. intros. typeclasses eauto. Qed. *)
+
+(*   Goal forall p sp q r, Iota p sp q -> Iota p sp r. *)
+(*   Proof. intros. Fail typeclasses eauto. admit. Qed. *)
+
+(*   Example one_trans p (q : subp p) (r : subp q) (s : subp r) : subp q. *)
+(*   Proof. exact (iota s). Defined. *)
+
+  Ltac prog_forcing := auto with forcing.
+  Obligation Tactic := program_simpl ; prog_forcing.
+
+  Lemma trans_refl_l (x y : P) (prf : x <= y) : transitivity (reflexivity x) prf = prf.
+  Proof. apply le_pi. Defined.
+
+(*  Section Translation.
+
+    Definition transport {p} (f : subp p → Type) :=
+      forall q : subp p, forall r : subp q, arrow (f q) (f (iota r)).
+
+    Section Sheaf.
+      Context {p} {f : subp p -> Type}.
+
+      Notation " 'rewrite' p 'in' x " := (eq_rect _ _ x _ p) (at level 10).
+
+      Definition refl (Θ : transport f) :=
+        forall q : subp p, forall x : f q, 
+          (rewrite (iota_iota_refl q) in (Θ q (iota q) x)) = x.
+      
+      Program Definition trans (Θ : transport f) := 
+        forall q : subp p, forall r : subp q, forall s : subp r,
+          forall x, ((Θ (iota r) (iota s)) ∘ (Θ q r)) x = Θ q (iota s) x.
+
+    End Sheaf.
+
+    Definition sheaf (p : P) :=
+      { sheaf_f : subp p -> Type &
+        { Θ : transport sheaf_f |
+          refl Θ /\ trans Θ } }.
+
+    Definition sheaf_f {p : P} (s : sheaf p) : subp p -> Type :=
+      projT1 s.
+
+    Program Definition Θ {p : P} (s : sheaf p) : transport (sheaf_f s) :=
+      projT2 s.
+
+    Definition sheaf_refl {p} (s : sheaf p) : refl (Θ s).
+    Proof. unfold Θ. destruct s. destruct s. destruct a. simpl. assumption. Defined.
+
+    Definition sheaf_trans {p} (s : sheaf p) : trans (Θ s).
+    Proof. unfold Θ. destruct s. destruct s. destruct a. simpl. assumption. Defined.
+
+    Program Definition sheafC (p : P) (q : subp p) (r : subp q) 
+      (f : sheaf q) : sheaf r :=
+        existT (fun s => sheaf_f f (iota s))
+        (λ s : subp r, λ t : subp s, λ x : sheaf_f f (iota s),
+          (Θ f (iota s) (iota t) x) : sheaf_f f (iota t)).
+
+    Notation " '(Σ' x , y ) " := (exist _ x y).
+
+    Next Obligation. split.  admit. admit. Defined.
+
+(*       red. intros.  *)
+(*       abstract_eq_proofs. revert x eqH0. destruct eqH. simpl. intros. *)
+(*       subst q1.  *)
+(*       revert x eqH0. clear_subset_proofs. intro. *)
+(*       apply simplification_exist. intros. revert x. *)
+(*       unfold iota_pi_inv_obligation_1 in *.  *)
+(*       simpl in *.  *)
+(*       unfold equal_exist, eq_ind_r, eq_ind. simpl. *)
+(*       intros. unfold subp. *)
+(*       simpl_eq_rect_exist. unfold inj_exist. *)
+(*       revert x. destruct H. intros. subst eqH1. simpl. *)
+(*       destruct f.  simpl in x.  *)
+(*       match goal with  *)
+(*         |- context[ eq_rect ?p ?P ?term ?q ?prf ] => set(foo:=term) *)
+(*       end. *)
+(*       simpl in foo. *)
+(*       unfold iota_pi_inv_obligation_1 in foo. *)
+(*       simpl in foo.  *)
+(*       on_call proof_irrelevance ltac:(fun c => set(prf:=c); *)
+(*         match type of prf with ?x = ?y => set (absprf1:=x) in * ; set (absprf2:=y) in *; clearbody prf *)
+(*         end). *)
+(*       revert foo. revert x. *)
+(*       intros. *)
+(*       revert prf x foo. *)
+(*       pose (proof_irrelevance _ absprf2 eqH). *)
+(*       remember absprf2 as H'. unfold absprf2 in HeqH'. destruct e. *)
+(*       intros. *)
+(*       rewrite prf. *)
+  
+  
+(*   intros. destruct prf. *)
+(*   clearbody absprf2. destruct e. *)
+(*   intros prf. subst absprf1. *)
+(*   destruct prf. *)
+*)
 
   (** The injection from P_q to P_p with q <= p *)
 
@@ -104,41 +319,33 @@ Section Forcing.
   Next Obligation.
   Proof.  destruct sq. simpl. now transitivity q. Defined.
 
-  Program Lemma subp_inj {p} (q : subp p) (r : subp q) : ` r <= p.
+  Program Lemma subp_inj {p} (q : subp p) (r : subp q) : r <= p.
   Proof. intros. destruct q, r; simpl in *. now transitivity x. Defined.
     
   Program Lemma ι {p} {q : subp p} (r : subp q) : subp p.
-  Proof. intros. exists (` r). destruct q, r; simpl in *. now transitivity x. Defined.
+  Proof. intros. exists (r). destruct q, r; simpl in *. now transitivity x. Defined.
 
   Program Lemma ι_lift {p} {q : subp p} (r : subp q) : subp (ι r).
-  Proof. intros. exists (` r). destruct r; reflexivity. Defined.
+  Proof. intros. exists (r). destruct r; reflexivity. Defined.
 
-  Program Lemma ι_inj {p} {q : subp p} (r : subp q) : ` r = ` (ι r).
+  Program Lemma ι_inj {p} {q : subp p} (r : subp q) : subp_proj r = (ι r).
   Proof. intros. destruct r. simpl. unfold ι. simpl. destruct q. simpl. reflexivity. Defined.
 
-  Definition ι_ι {p} {q : subp p} {r : subp (` q)} (s : subp (` r)) : subp (` (ι r)).
-  Proof. exists (` s). rewrite <- ι_inj. apply (proj2_sig s). Defined.
+  Definition ι_ι {p} {q : subp p} {r : subp q} (s : subp r) : subp (ι r).
+  Proof. exists s. rewrite <- ι_inj. apply (proj2_sig s). Defined.
 
-  Program Lemma ι_refl {p} (q : subp p) : subp (` q).
-  Proof. intros. exists (` q). reflexivity. Defined.
+  Program Lemma ι_refl {p} (q : subp p) : subp (q).
+  Proof. intros. exists q. reflexivity. Defined.
 
   Lemma ι_ι_refl {p} (q : subp p) : ι (ι_refl q) = q.
   Proof. unfold ι, ι_refl. simpl. destruct q. simpl. f_equal. apply le_pi. Defined.
 
-  Hint Extern 0 (_ = _) => apply ι_ι_refl : forcing.
-  Hint Extern 0 (_ <= _) => apply reflexivity : forcing. 
-  Ltac prog_forcing := auto with forcing.
-  Hint Extern 0 (_ = _) => try f_equal ; apply le_pi : forcing.
-
   Obligation Tactic := program_simpl ; prog_forcing.
-
-  Lemma trans_refl_l (x y : P) (prf : x <= y) : transitivity (reflexivity x) prf = prf.
-  Proof. apply le_pi. Defined.
 
   Section Translation.
 
     Definition transport {p} (f : subp p → Type) :=
-      forall q : subp p, forall r : subp (` q), arrow (f q) (f (ι r)).
+      forall q : subp p, forall r : subp q, arrow (f q) (f (ι r)).
 
     Section Sheaf.
       Context {p} {f : subp p -> Type}.
@@ -180,16 +387,15 @@ Section Forcing.
     Definition sheaf_trans {p} (s : sheaf p) : trans (Θ s).
     Proof. unfold Θ. destruct s. destruct s. destruct a. simpl. assumption. Defined.
 
-    Program Definition sheafC (p : P) (q : subp p) (r : subp (` q)) 
-      (f : sheaf (` q)) : sheaf (` r) :=
+    Program Definition sheafC (p : P) (q : subp p) (r : subp q) 
+      (f : sheaf q) : sheaf r :=
         existT (fun s => sheaf_f f (ι s))
-        (λ s : subp (`r), λ t : subp (` s), λ x : sheaf_f f (ι s),
+        (λ s : subp r, λ t : subp s, λ x : sheaf_f f (ι s),
           (Θ f (ι s) (ι_ι t) x) : sheaf_f f (ι_ι t)).
 
     Next Obligation. intros. unfold ι, ι_ι; simpl. f_equal. apply le_pi. Defined.
 
     Notation " '(Σ' x , y ) " := (exist _ x y).
-
     Next Obligation. split. intros. 
       red. intros. destruct q0. simpl. rewrite eq_trans_eq_refl_l.
       unfold subp. simpl. unfold ι. simpl.
@@ -201,20 +407,20 @@ Section Forcing.
       destruct f; simpl. 
       unfold ι_ι. simpl. 
       set(theprf :=
-        (transitivity (x:=x0) (y:=x0) (z:=` q) (reflexivity x0)
-          (transitivity (x:=x0) (y:=x1) (z:=` q) l l0))). abstract_eq_proofs.
+        (transitivity (x:=x0) (y:=x0) (z:=q) (reflexivity x0)
+          (transitivity (x:=x0) (y:=x1) (z:=q) l l0))). abstract_eq_proofs.
       revert theprf eqH0 x.
       destruct eqH. subst l1. intros. simpl. 
       unfold ι in *. simpl in *. subst theprf.
       revert eqH0 x.
       rewrite (trans_refl_l x0 x1 l).
-      set (ll0:=transitivity (x:=x0) (y:=x1) (z:=` q) l l0).
+      set (ll0:=transitivity (x:=x0) (y:=x1) (z:=q) l l0).
       clearbody ll0. intros.
       destruct s. destruct a as [re tr].
       red in re. 
       on_call @Θ ltac:(fun c => set (foo := c)).
       unfold ι in foo. simpl in *.
-      pose (re (Σx0, ll0) x). rewrite <- e.
+      pose (re (subp_intro x0 ll0) x). rewrite <- e.
       unfold ι, ι_refl. simpl. rewrite eq_trans_eq_refl_l.
       rewrite eq_rect_f_equal. f_equal. pi.
 
@@ -239,8 +445,8 @@ Section Forcing.
       destruct eqH2. simpl.
       set (theprf := (transitivity (transitivity l1 l) l0)) in *.
       destruct eqH0. simpl.
-      specialize (t (Σx0, transitivity l l0) (Σ x2, l1) (Σ x3, l2) x).
-      unfold ι, ι_ι in t. simpl in t. unfold compose in t.
+      specialize (t (subp_intro x0 (transitivity l l0)) (subp_intro x2 l1) (subp_intro x3 l2) x).
+      unfold subp_intro, subp_intro_obligation_1, ι, ι_ι in t. simpl in t. unfold compose in t. 
       rewrite t. clear t.
       unfold trans_obligation_1. simpl.
       rewrite !eq_trans_eq_refl_l.
@@ -362,6 +568,8 @@ revert s''.
   End Translation.
 
 End Forcing.
+
+Module NatForcing := Forcing(NatCondition).
 
 Declare ML Module "forcing_plugin".
 
