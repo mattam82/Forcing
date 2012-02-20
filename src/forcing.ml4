@@ -315,6 +315,17 @@ module Forcing(F : ForcingCond) = struct
     let p = mk_var pn in
     let trans c p = simpl (mk_app (trans c) [p]) in
     let interpretation c p sigma = interp (trans c p sigma) p sigma in
+    let trivial c =
+      let term = mk_cond_lam (next_q ()) (mk_appc coq_subp [p]) (return c) in
+      let restr = 
+	let qn = next_q () and rn = next_r () and sn = next_s () in
+	  mk_cond_lam qn (mk_appc coq_subp [p])
+	  (mk_cond_lam rn (mk_appc coq_subp [mk_var qn])
+	   (mk_cond_lam sn (mk_appc coq_subp [mk_var rn])
+	    (mk_var sn))) 
+      in
+	mk_pair term restr
+    in
     let term =
       match kind_of_term c with
       | Sort s -> 
@@ -401,16 +412,18 @@ module Forcing(F : ForcingCond) = struct
       | App (f, args) -> 
 	mk_app (trans f p) (p :: List.map (fun x -> trans x p) (Array.to_list args))
 
-      | _ -> 
-	let term = mk_cond_lam (next_q ()) (mk_appc coq_subp [p]) (return c) in
-	let restr = 
-	  let qn = next_q () and rn = next_r () and sn = next_s () in
-	    mk_cond_lam qn (mk_appc coq_subp [p])
-	    (mk_cond_lam rn (mk_appc coq_subp [mk_var qn])
-	     (mk_cond_lam sn (mk_appc coq_subp [mk_var rn])
-	      (mk_var sn))) 
-	in
-	  mk_pair term restr
+      | Const cst ->
+	(try 
+	   let env = Global.env () in
+	   let cty = type_of_constant env cst in
+	   let ty = mkApp (constr_of_global forcing_class.Typeclasses.cl_impl, [| cty; c |]) in
+	   let evars, impl = Typeclasses.resolve_one_typeclass env Evd.empty ty in
+	     return (whd_betadeltaiota env Evd.empty
+		     (mkApp (constr_of_global (Nametab.global (Ident (dummy_loc, id_of_string "forcing_traduction"))),
+			     [| cty; c; impl; mkVar pn |])))
+	 with Not_found -> trivial c)
+
+      | _ -> trivial c
     in mk_cond_lam pn (return condition_type) term
 
   let named_to_nameless env sigma c =

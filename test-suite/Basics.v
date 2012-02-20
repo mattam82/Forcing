@@ -70,8 +70,71 @@ Next Obligation.
   admit.
 Defined.
 
-Print later_trans.
+Implicit Arguments forcing_traduction [[A] [ForcingOp]].
+Unset Printing Existential Instances.
+About eq_type.
 
+Program Definition foo : ∀ (p : nat) (r : subp p) (arg : sheaf r) (r1 : subp r) 
+   (f2 : forall r2 : subp r1, (projT1 (forcing_traduction later (ForcingOp:=later_inst) (` r2) r2 (sheafC r r r2 arg)) r2 -> projT1 (sheafC r r r2 arg) r2))
+   (r2 : subp r1) (s2 : subp r2)
+   (arg2 : projT1 (forcing_traduction later (ForcingOp:=later_inst) r2 r2 (sheafC r r r2 arg)) r2),
+   (f2 r2 arg2) = f2 r2 arg2 ->
+   let foo :=
+     (projT2 (forcing_traduction later (ForcingOp:=later_inst) r2 r2 (sheafC r r r2 arg)) r2
+       s2 arg2)
+   in
+
+   True.
+intros. 
+set(call := f2 (ι s2)).
+clearbody foo call. simpl in foo. simpl in call.
+unfold later_sheaf_f in *. simpl in *. unfold subp_proj in *. destruct s2. destruct x.
+simpl in *. admit.
+simpl in *.  
+
+
+
+Program Definition foo :=
+  ∀ p : nat,
+  {f
+   : ∀ (r : subp p) (arg : sheaf r),
+     {f1
+     : ∀ r1 : subp r,
+       {f2
+       : ∀ r2 : subp r1,
+         projT1 (forcing_traduction later (ForcingOp:=later_inst) r2 r2 (sheafC r r r2 arg)) r2
+         → projT1 (sheafC r r r2 arg) r2 |
+       ∀ (r2 : subp r1) (s2 : subp r2)
+       (arg2 : projT1 (forcing_traduction later (ForcingOp:=later_inst) r2 r2 (sheafC r r r2 arg)) r2),
+       eq_type _
+         (f2 s2
+           (projT2 (forcing_traduction later (ForcingOp:=later_inst) r2 r2 (sheafC r r r2 arg)) r2
+               s2 arg2)
+            )
+         (projT2 (sheafC r r r2 arg) r2 s2 (f2 r2 arg2):>)} → projT1 (sheafC r r r1 arg) r1 | True } | True }.
+
+
+(*      ∀ (r1 : subp r) (s1 : subp r1) *)
+(*      (arg1 : {f2 *)
+(*              : ∀ r2 : subp r1, *)
+(*                projT1 (forcing_traduction later (ForcingOp:=later_inst) r2 r2 (sheafC r r r2 arg)) r2 *)
+(*                → projT1 (sheafC r r r2 arg) r2 | *)
+(*              ∀ (r2 : subp r1) (s2 : subp r2) *)
+(*              (arg2 : projT1 *)
+(*                        (forcing_traduction later (ForcingOp:=later_inst) r2 r2 (sheafC r r r2 arg)) *)
+(*                        r2), *)
+(*              eq_type _ (projT2 (sheafC r r r2 arg) r2 s2 (f2 r2 arg2):>) *)
+(*                (f2 s2 *)
+(*                   (projT2 *)
+(*                      (forcing_traduction later (ForcingOp:=later_inst) r2 r2 (sheafC r r r2 arg)) r2 *)
+(*                      s2 arg2) *)
+(*                 :>)}), *)
+(*      eq_type _ (projT2 (sheafC r r r1 arg) r1 s1 (f1 r1 arg1):>) *)
+(*        (f1 s1 (λ s2 : subp s1, arg1 s2):>)} | *)
+(*    ∀ (r : subp p) (s : subp r) (arg : sheaf r), *)
+(*    eq_type _ ((λ s1 : subp s, f r arg s1):>) (f s (sheafC r r s arg):>)}. *)
+
+Forcing Operator fixp : (forall T : Type, (later T -> T) -> T).
 
 
 Next Obligation. admit. Defined. 
