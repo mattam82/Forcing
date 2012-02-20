@@ -310,8 +310,6 @@ module Forcing(F : ForcingCond) = struct
     [return (mkProd (Anonymous, mkApp (coq_subp, [| p |]), new_Type ()));
      mk_appc coq_transport [return p]; a; b]
 
-
-      
   let rec trans (c : constr) : constr forcing_term =
     let pn = next_p () in
     let p = mk_var pn in
@@ -446,9 +444,14 @@ module Forcing(F : ForcingCond) = struct
 	 | _ -> assert false)
     | c -> Glob_term.map_glob_constr meta_to_holes c
 
-  let translate c env sigma = 
+  let interpretation c sigma = 
+    let pn = next_p () in let p = mk_var pn in
+    let inter = interp (simpl (mk_app (trans c) [p]) sigma) p in
+      mk_cond_prod pn (return condition_type) inter sigma
+
+  let translate tr c env sigma = 
     clear_p (); clear_q (); clear_r (); clear_s (); clear_f (); clear_anon (); clear_ty ();
-    let c' = trans c [] in
+    let c' = tr c [] in
     let sigma, c' = named_to_nameless env sigma c' in
     let dt = Detyping.detype true [] [] c' in
     let dt = meta_to_holes dt in
@@ -456,17 +459,17 @@ module Forcing(F : ForcingCond) = struct
 
   let tac i c = fun gs ->
     let env = pf_env gs and sigma = Refiner.project gs in
-    let evars, term' = translate c env sigma in
+    let evars, term' = translate trans c env sigma in
     let evs = ref evars in
     let term'', ty = Subtac_pretyping.interp env evs term' None in
       tclTHEN (tclEVARS !evs) 
       (letin_tac None (Name i) term'' None onConcl) gs
 
   (** Define [id] as the translation of [c] (with term and restriction map) *)
-  let command id ?hook c =
+  let command id tr ?hook c =
     let env = Global.env () and sigma = Evd.empty in
     let c = Constrintern.interp_constr sigma env c in
-    let evars, term' = translate c env sigma in
+    let evars, term' = translate tr c env sigma in
     let evs = ref evars in
     let term'', ty = Subtac_pretyping.interp env evs term' None in
     let evm' = Subtac_utils.evars_of_term !evs Evd.empty term'' in
@@ -478,28 +481,31 @@ module Forcing(F : ForcingCond) = struct
   open Decl_kinds
   open Global
 
+  let reference_of_global g = 
+    Qualid (dummy_loc, Nametab.shortest_qualid_of_global Idset.empty g)
+
   let forcing_operator id c =
     let hook ty _ gr = 
+      let env = Global.env () in
       let ax = 
 	Declare.declare_constant id (ParameterEntry (None, ty, None), IsAssumption Logical)
       in
+      let trty = constr_of_global gr in
+      let evars, ev = Evarutil.new_evar Evd.empty env trty in
       let body, types = 
 	Typeclasses.instance_constructor forcing_class 
-        [ty; mkConst ax; type_of_global gr; constr_of_global gr]
+        [ty; mkConst ax; trty; ev]
       in
-      let ce = 
-	{ const_entry_body = Option.get body;
-	  const_entry_secctx = None;
-	  const_entry_type = Some types;
-	  const_entry_opaque = false }
+      let id' = add_suffix id "_inst" in
+      let evars, _, def, ty = 
+	Eterm.eterm_obligations env id' evars evars 0 (Option.get body) types 
       in
-      let inst = 
-	Declare.declare_constant (add_suffix id "_inst")
-	(DefinitionEntry ce, IsDefinition Instance)
-      in
-	Typeclasses.add_instance
-	(Typeclasses.new_instance forcing_class None false (ConstRef inst))	  
-    in command (add_suffix id "_trans") c ~hook
+	ignore (Subtac_obligations.add_definition id' ~term:def 
+		~hook:(fun loc gr ->
+		       Typeclasses.add_instance
+		       (Typeclasses.new_instance forcing_class None false gr))
+	        ty evars)
+    in command (add_suffix id "_trans") interpretation c ~hook
 
 end
 
@@ -523,5 +529,5 @@ VERNAC COMMAND EXTEND Forcing_operator
 END
 
 VERNAC COMMAND EXTEND Force
-[ "Force" ident(i) ":=" constr(c)  ] -> [ NatForcing.command i c ]
+[ "Force" ident(i) ":=" constr(c)  ] -> [ NatForcing.command i NatForcing.trans c ]
 END

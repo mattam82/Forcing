@@ -31,31 +31,22 @@ Hint Extern 2 (_ <= _) => forcing_le : forcing.
 Set Printing Existential Instances.
 Print HintDb forcing.
 
-Forcing Operator later : (Type -> Type).
-
-Print later_trans.
-
-Program Definition embed (p : P) : subp p := p.
-
 Program Definition later_sheaf_f {p : nat} (q : subp p) (T : sheaf q) : subp q -> Type :=
   fun r =>
     match r with
       | 0 => unit
       | S r' => sheaf_f T r'
     end.
-Next Obligation. unfold le. destruct r. simpl in *. subst x. auto with arith. Qed.
+Next Obligation of later_sheaf_f. unfold le. destruct r. simpl in *. subst x. auto with arith. Qed.
 
-Program Definition later_def (p : nat) : projT1 (later_trans p) (embed p) :=
-  λ q : subp p, λ T : sheaf q,
-   let val : transport (later_sheaf_f q T) := 
-     λ (r : subp q) (t : subp r) (M : later_sheaf_f q T r),
-       let (tn, tprf) return later_sheaf_f q T (ι t) := t in
-       match tn return forall prf : tn <= r, later_sheaf_f q T (ι (exist tn prf)) with 
-         | 0 => fun _ => tt
-         | S t' => fun _ => Θ T (pred r) t' _
-       end tprf
-   in existT (later_sheaf_f q T) val.
-
+Program Definition later_transp {p} (q : subp p) (T : sheaf q) : transport (later_sheaf_f q T) :=
+  λ (r : subp q) (t : subp r) (M : later_sheaf_f q T r),
+  let (tn, tprf) return later_sheaf_f q T (ι t) := t in
+    match tn return forall prf : tn <= r, later_sheaf_f q T (ι (exist tn prf)) with 
+      | 0 => fun _ => tt
+      | S t' => fun _ => Θ T (pred r) t' _
+    end tprf.
+  
 Next Obligation. intros. destruct r, t. simpl in *. unfold le in *. eauto with arith. Defined.
 Next Obligation. intros. destruct r. simpl in *. unfold le in *. destruct x; eauto with arith. Defined.
 Next Obligation. destruct r. simpl in *. unfold le in *. clear_subset_proofs. red in M.
@@ -66,25 +57,33 @@ Defined.
 
 Next Obligation. unfold ι. simpl. pi. Defined.
 
-Next Obligation. split; red; intros.
-  
-  unfold ι, ι_refl, ι_ι_refl. simpl. destruct q0. simpl in *. 
-  rewrite eq_trans_eq_refl_l.
-  rewrite eq_rect_f_equal. 
-  clear_subset_proofs.
-  abstract_eq_proofs. 
 
-  simpl in M. destruct x; simpl in *. elimtype False. depelim H.
+Program Definition embed (p : P) : subp p := p.
 
-  revert M; clear_subset_proofs. unfold le in *. clear_subset_proofs. trivial.
+Forcing Operator later : (Type -> Type).
+
+Next Obligation.
+  red. intros.
+  assert(forall p (q : subp p) (T : sheaf q), refl (later_transp q T) /\ trans (later_transp q T)). admit.
+  refine (exist (λ q : subp p, λ T : sheaf q,
+    existT (later_sheaf_f q T) (exist (later_transp q T) (H p q T))) _).
+  admit.
 Defined.
 
-  intros. 
-  
-  red in M. destruct x; simpl in *. red in M. destruct T. simpl in *.
+Print later_trans.
 
 
-red. simpl. 
+
+Next Obligation. admit. Defined. 
+Next Obligation. clear_subset_proofs. admit. Defined.
+
+Program Definition later_def (p : nat) : projT1 (later_trans p) (embed p) :=
+  λ q : subp p, λ T : sheaf q,
+    existT (later_sheaf_f q T) (later_transp q T).
+
+Next Obligation. admit. Defined. 
+Next Obligation. clear_subset_proofs. admit. Defined.
+
 Time Force foo := (forall X : Set, X).
 
 
