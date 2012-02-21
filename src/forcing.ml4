@@ -217,33 +217,40 @@ module Forcing(F : ForcingCond) = struct
 
   let mk_hole sigma = mkMeta hole
   let mk_ty_hole sigma = mkMeta ty_hole
-    
+
+  let array_dropn n a =
+    Array.sub a n (Array.length a - n)
+
+  let rec simplc c =
+    match kind_of_term c with
+    | App (f, args) when isLambda f ->
+      let (na, _, body) = destLambda f in
+      let s' = subst1 args.(0) (subst_var (out_name na) body) in
+	simplc (mkApp (s', array_tl args))
+    | App (f, args) when f = Lazy.force coq_exist && Array.length args > 4 ->
+      simplc (mkApp (args.(2), array_dropn 4 args))
+    | _ -> c
+      
   let simpl c sigma =
-    let rec aux c = match kind_of_term c with
-      | App (f, args) when isLambda f ->
-	let (na, _, body) = destLambda f in
-	let s' = subst1 args.(0) (subst_var (out_name na) body) in
-	  aux (mkApp (s', array_tl args))
-      | _ -> c
-    in aux (c sigma)
+    simplc (c sigma)
 
   let interp tr p = 
-    let term = 
-      match kind_of_term tr with
+    let rec term tr = 
+      match kind_of_term (simplc tr) with
       | App (f, args) when f = Lazy.force coq_dep_pair || f = Lazy.force coq_nondep_pair ->
-	return args.(2)
+	return (simplc args.(2))
       | _ ->
 	mk_appc (Lazy.force coq_pi1) [mk_ty_hole; mk_ty_hole; simpl (return tr)]
-    in simpl (mk_app term [p])
+    in simpl (mk_app (term tr) [p])
 
   let restriction tr p q = 
-    let term = 
-      match kind_of_term tr with
+    let rec term tr = 
+      match kind_of_term (simplc tr) with
       | App (f, args) when f = Lazy.force coq_dep_pair || f = Lazy.force coq_nondep_pair ->
-	return args.(3)
+	return (simplc args.(3))
       | _ ->
 	mk_appc (Lazy.force coq_pi2) [mk_ty_hole; mk_ty_hole; simpl (return tr)]
-    in simpl (mk_app term [p; q])
+    in simpl (mk_app (term tr) [p; q])
 
   let mk_cond_abs abs na t b = fun sigma ->
     abs (Name na, t sigma, b sigma)
