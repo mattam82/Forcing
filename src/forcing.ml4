@@ -1,4 +1,4 @@
-(* -*- compile-command: "COQBIN=~/research/coq/trunk/bin/ make -k -C .. src/forcing_plugin.cma src/forcing_plugin.cmxs" -*- *)
+(* -*- compile-command: "COQBIN=~/research/coq/git/bin/ make -k -C .. src/forcing_plugin.cma src/forcing_plugin.cmxs" -*- *)
 (************************************************************************)
 (*  v      *   The Coq Proof Assistant  /  The Coq Development Team     *)
 (* <O___,, * CNRS-Ecole Polytechnique-INRIA Futurs-Universite Paris Sud *)
@@ -117,15 +117,21 @@ let coq_dep_pair = lazy (Coqlib.coq_constant "sum" ["Init";"Specif"] "existT")
 let coq_pi1 = lazy (Coqlib.coq_constant "sum" ["Init";"Specif"] "projT1")
 let coq_pi2 = lazy (Coqlib.coq_constant "sum" ["Init";"Specif"] "projT2")
 
-let init_constant mods reference = constr_of_global (Coqlib.find_reference "Forcing" mods reference)
-let coq_nondep_prod = lazy (init_constant ["Forcing";"Init"] "prodT")
-let coq_nondep_pair = lazy (init_constant ["Forcing";"Init"] "pairT")
+let init_reference = Coqlib.find_reference "Forcing"
+let init_constant mods reference = constr_of_global (init_reference mods reference)
 
-let coq_eqtype = lazy (init_constant ["Forcing";"Init"] "eq_type")
+let forcing_constant c = lazy (init_constant ["Forcing";"Init"] c)
+let coq_nondep_prod = forcing_constant "prodT"
+let coq_nondep_pair = forcing_constant "pairT"
+
+let coq_eqtype = forcing_constant "eq_type"
 let coq_eqtype_ref = lazy (init_reference ["Forcing";"Init"] "eq_type")
 
-let coq_app = lazy (init_constant ["Forcing";"Init"] "app_annot")
-let coq_conv = lazy (init_constant ["Forcing";"Init"] "conv_annot")
+let coq_app = forcing_constant "app_annot"
+let coq_conv = forcing_constant "conv_annot"
+let coq_forcing_op = lazy (init_reference ["Forcing";"Init"] "ForcingOp")
+let coq_forcing_op_type = forcing_constant "forcing_traduction_type"
+let coq_forcing_op_trad = forcing_constant "forcing_traduction"
 
 module type ForcingCond = sig
   val cond_mod : string list
@@ -150,6 +156,17 @@ module Forcing(F : ForcingCond) = struct
 
   let coq_iota = forcing_const "iota"
 
+  let forcing_class = Typeclasses.class_info (Lazy.force coq_forcing_op)
+
+  let find_forcing_op c =
+    let ty = Typing.type_of (Global.env ()) Evd.empty c in
+    let impl = constr_of_global forcing_class.Typeclasses.cl_impl in
+    let cstr = mkApp (impl, [| ty ; c |]) in
+    let (_, inst) = Typeclasses.resolve_one_typeclass (Global.env ()) Evd.empty cstr in
+    let proj f = mkApp (f, [| ty; c; inst |]) in
+      (proj (Lazy.force coq_forcing_op_type),
+       proj (Lazy.force coq_forcing_op_trad))
+      
   let sheaf p =
     mkApp (coq_sheaf, [| p |])
       
@@ -292,12 +309,23 @@ module Forcing(F : ForcingCond) = struct
     mk_appc (Lazy.force coq_dep_pair) 
     [return (mkProd (Anonymous, mkApp (coq_subp, [| p |]), new_Type ()));
      mk_appc coq_transport [return p]; a; b]
-      
+
   let rec trans (c : constr) : constr forcing_term =
     let pn = next_p () in
     let p = mk_var pn in
     let trans c p = simpl (mk_app (trans c) [p]) in
     let interpretation c p sigma = interp (trans c p sigma) p sigma in
+    let trivial c =
+      let term = mk_cond_lam (next_q ()) (mk_appc coq_subp [p]) (return c) in
+      let restr = 
+	let qn = next_q () and rn = next_r () and sn = next_s () in
+	  mk_cond_lam qn (mk_appc coq_subp [p])
+	  (mk_cond_lam rn (mk_appc coq_subp [mk_var qn])
+	   (mk_cond_lam sn (mk_appc coq_subp [mk_var rn])
+	    (mk_var sn))) 
+      in
+	mk_pair term restr
+    in
     let term =
       match kind_of_term c with
       | Sort s -> 
@@ -384,16 +412,18 @@ module Forcing(F : ForcingCond) = struct
       | App (f, args) -> 
 	mk_app (trans f p) (p :: List.map (fun x -> trans x p) (Array.to_list args))
 
-      | _ -> 
-	let term = mk_cond_lam (next_q ()) (mk_appc coq_subp [p]) (return c) in
-	let restr = 
-	  let qn = next_q () and rn = next_r () and sn = next_s () in
-	    mk_cond_lam qn (mk_appc coq_subp [p])
-	    (mk_cond_lam rn (mk_appc coq_subp [mk_var qn])
-	     (mk_cond_lam sn (mk_appc coq_subp [mk_var rn])
-	      (mk_var sn))) 
-	in
-	  mk_pair term restr
+      | Const cst ->
+	(try 
+	   let env = Global.env () in
+	   let cty = type_of_constant env cst in
+	   let ty = mkApp (constr_of_global forcing_class.Typeclasses.cl_impl, [| cty; c |]) in
+	   let evars, impl = Typeclasses.resolve_one_typeclass env Evd.empty ty in
+	     return (whd_betadeltaiota env Evd.empty
+		     (mkApp (constr_of_global (Nametab.global (Ident (dummy_loc, id_of_string "forcing_traduction"))),
+			     [| cty; c; impl; mkVar pn |])))
+	 with Not_found -> trivial c)
+
+      | _ -> trivial c
     in mk_cond_lam pn (return condition_type) term
 
   let named_to_nameless env sigma c =
@@ -427,9 +457,14 @@ module Forcing(F : ForcingCond) = struct
 	 | _ -> assert false)
     | c -> Glob_term.map_glob_constr meta_to_holes c
 
-  let translate c env sigma = 
+  let interpretation c sigma = 
+    let pn = next_p () in let p = mk_var pn in
+    let inter = interp (simpl (mk_app (trans c) [p]) sigma) p in
+      mk_cond_prod pn (return condition_type) inter sigma
+
+  let translate tr c env sigma = 
     clear_p (); clear_q (); clear_r (); clear_s (); clear_f (); clear_anon (); clear_ty ();
-    let c' = trans c [] in
+    let c' = tr c [] in
     let sigma, c' = named_to_nameless env sigma c' in
     let dt = Detyping.detype true [] [] c' in
     let dt = meta_to_holes dt in
@@ -437,22 +472,53 @@ module Forcing(F : ForcingCond) = struct
 
   let tac i c = fun gs ->
     let env = pf_env gs and sigma = Refiner.project gs in
-    let evars, term' = translate c env sigma in
+    let evars, term' = translate trans c env sigma in
     let evs = ref evars in
     let term'', ty = Subtac_pretyping.interp env evs term' None in
       tclTHEN (tclEVARS !evs) 
       (letin_tac None (Name i) term'' None onConcl) gs
 
-  let command id c =
+  (** Define [id] as the translation of [c] (with term and restriction map) *)
+  let command id tr ?hook c =
     let env = Global.env () and sigma = Evd.empty in
     let c = Constrintern.interp_constr sigma env c in
-    let evars, term' = translate c env sigma in
+    let evars, term' = translate tr c env sigma in
     let evs = ref evars in
     let term'', ty = Subtac_pretyping.interp env evs term' None in
     let evm' = Subtac_utils.evars_of_term !evs Evd.empty term'' in
     let evm' = Subtac_utils.evars_of_term !evs evm' ty in
     let evars, _, def, ty = Eterm.eterm_obligations env id !evs evm' 0 term'' ty in
-      ignore (Subtac_obligations.add_definition id ~term:def ty evars)
+    let hook = Option.map (fun f -> f c) hook in
+      ignore (Subtac_obligations.add_definition id ~term:def ?hook ty evars)
+
+  open Decl_kinds
+  open Global
+
+  let reference_of_global g = 
+    Qualid (dummy_loc, Nametab.shortest_qualid_of_global Idset.empty g)
+
+  let forcing_operator id c =
+    let hook ty _ gr = 
+      let env = Global.env () in
+      let ax = 
+	Declare.declare_constant id (ParameterEntry (None, ty, None), IsAssumption Logical)
+      in
+      let trty = constr_of_global gr in
+      let evars, ev = Evarutil.new_evar Evd.empty env trty in
+      let body, types = 
+	Typeclasses.instance_constructor forcing_class 
+        [ty; mkConst ax; trty; ev]
+      in
+      let id' = add_suffix id "_inst" in
+      let evars, _, def, ty = 
+	Eterm.eterm_obligations env id' evars evars 0 (Option.get body) types 
+      in
+	ignore (Subtac_obligations.add_definition id' ~term:def 
+		~hook:(fun loc gr ->
+		       Typeclasses.add_instance
+		       (Typeclasses.new_instance forcing_class None false gr))
+	        ty evars)
+    in command (add_suffix id "_trans") interpretation c ~hook
 
 end
 
@@ -471,6 +537,10 @@ TACTIC EXTEND nat_forcing
 [ "nat_force" constr(c) "as" ident(i) ] -> [ NatForcing.tac i c ]
 END
 
+VERNAC COMMAND EXTEND Forcing_operator
+[ "Forcing" "Operator" ident(i) ":" constr(c)  ] -> [ NatForcing.forcing_operator i c ]
+END
+
 VERNAC COMMAND EXTEND Force
-[ "Force" ident(i) ":=" constr(c)  ] -> [ NatForcing.command i c ]
+[ "Force" ident(i) ":=" constr(c)  ] -> [ NatForcing.command i NatForcing.trans c ]
 END
