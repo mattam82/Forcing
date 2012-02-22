@@ -74,6 +74,12 @@ Implicit Arguments forcing_traduction [[A] [ForcingOp]].
 Unset Printing Existential Instances.
 About eq_type.
 
+Forcing Operator fixp : (forall T : Type, (later T -> T) -> T).
+
+
+Forcing Operator ident : (forall T, T -> T).
+
+
 Program Definition foo : ∀ (p : nat) (r : subp p) (arg : sheaf r) (r1 : subp r) 
    (f2 : forall r2 : subp r1, (projT1 (forcing_traduction later (ForcingOp:=later_inst) (` r2) r2 (sheafC r r r2 arg)) r2 -> projT1 (sheafC r r r2 arg) r2))
    (r2 : subp r1) (s2 : subp r2)
@@ -90,7 +96,7 @@ set(call := f2 (ι s2)).
 clearbody foo call. simpl in foo. simpl in call.
 unfold later_sheaf_f in *. simpl in *. unfold subp_proj in *. destruct s2. destruct x.
 simpl in *. admit.
-simpl in *.  
+simpl in *.
 
 
 
