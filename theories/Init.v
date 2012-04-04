@@ -30,11 +30,11 @@ Lemma eq_rect_f_equal {A B} (f : A -> B) (x y : A) (P : B -> Type) (p : P (f x))
   eq_rect x (fun x => P (f x)) p y prf.
 Proof. destruct prf. simpl. reflexivity. Defined.
 
-Lemma eq_trans_eq_refl_l {A} (x y : A) (p : x = y) : eq_trans eq_refl p = p.
-Proof. destruct p. reflexivity. Defined.
+(* Lemma eq_trans_eq_refl_l {A} (x y : A) (p : x = y) : eq_trans eq_refl p = p. *)
+(* Proof. destruct p. reflexivity. Defined. *)
   
-Lemma eq_trans_eq_refl_r {A} (x y : A) (p : x = y) : eq_trans p eq_refl = p.
-Proof. destruct p. reflexivity. Defined.
+(* Lemma eq_trans_eq_refl_r {A} (x y : A) (p : x = y) : eq_trans p eq_refl = p. *)
+(* Proof. destruct p. reflexivity. Defined. *)
 
 Lemma eq_rect_sym {A} {Q : A -> Type} (x y : A) (p : Q y) (prf : x = y) :
   eq_rect x Q (eq_rect y Q p x (eq_sym prf)) y prf = p.
@@ -42,7 +42,7 @@ Proof. destruct prf. simpl. reflexivity. Qed.
 
 Lemma eq_rect_comm {A} {Q : A -> Type} (x y : A) (p : Q y) (prf : x = y) (prf' : y = x) :
   eq_rect x Q (eq_rect y Q p x prf') y prf = p.
-Proof. replace prf' with (eq_sym prf) by apply proof_irrelevance. apply eq_rect_sym. Qed.
+Proof. change prf' with (eq_sym prf). apply eq_rect_sym. Qed.
 
 Lemma ext_eq_pointwise {A B} (f g : A -> B) (prf : f = g) (x : A) : f x = g x.
 Proof. now subst f. Defined.
@@ -64,34 +64,30 @@ Proof. now intros ->. Defined.
 
 Lemma simplification_existT2' A (P : A -> Type) (p : A) (x y : P p) 
   (B : forall H : (existT p x = existT p y), Type) :
-  (forall H : x = y, B (equal_existT H)) -> (forall H, B H).
-Proof. intros H E. depelim E. unfold equal_existT, eq_ind_r in H. 
-  specialize (H eq_refl). now simpl in H. Defined.
+  (forall H : x = y, B (equal_existT H)) -> (forall H : (existT p x = existT p y), B H).
+Proof. intros H E. injection E. simplify_dep_elim. apply (H eq_refl). Defined.
 
 Implicit Arguments exist [[A] [P]].
 
-Lemma equal_exist {A} {P : A -> Prop} {p : A} {x y : P p} : x = y -> (exist p x = exist p y).
-Proof. now intros ->. Defined.
+Lemma equal_exist {A} {P : A -> Prop} {p : A} {x y : P p} : exist p x = exist p y.
+Proof. now intros. Defined.
 
 Require Import EqdepFacts.
 
 Lemma simplification_exist A (P : A -> Prop) (p : A) (x y : P p) 
   (B : forall H : (exist p x = exist p y), Type) :
-  (forall H : x = y, B (equal_exist H)) -> (forall H, B H).
-Proof. intros H E. pose (eq_sig_snd E). pose (proof_irrelevance _ (eq_sig_fst E) eq_refl). 
-  rewrite e0 in e. simpl in e. subst x. specialize (H eq_refl). 
-  pose (proof_irrelevance _ (equal_exist eq_refl) E). rewrite <- e. assumption.
-Defined.
+  (B equal_exist) -> (forall H : _ = _, B H).
+Proof. intros H E. apply H. Defined.
 
-Lemma inj_exist {B} (R : B -> Prop) (b : B) (x y : R b) (prf : exist b x = exist b y) : x = y.
-Proof. pi. Defined.
+Lemma simplification_existP A (P : A -> Prop) (p : A) (x y : P p) 
+  (B : forall H : (exist p x = exist p y), Prop) :
+  (B equal_exist) -> (forall H : _ = _, B H).
+Proof. intros H E. apply H. Defined.
 
 Lemma eq_rect_exist {B} {R : B -> Prop} {Q : sig R -> Type} (b : B) (x y : R b) (p : Q (exist b x)) 
   (prf : exist b x = exist b y) :
-  eq_rect (exist b x) Q p (exist b y) prf = eq_rect x (fun prf => Q (exist b prf)) p y (inj_exist _ _ _ _ prf).
-Proof. revert prf. apply simplification_exist. intros H. subst y. simpl. unfold inj_exist.
-  set(foo:=proof_irrelevance (R b) x x). depelim foo. rewrite <- x. simpl. reflexivity.
-Qed.
+  eq_rect (exist b x) Q p (exist b y) prf = (p : Q (exist b y)).
+Proof. change prf with (@eq_refl _ (exist b x)). reflexivity. Qed.
 
 Ltac simpl_eq_rect_exist :=
  match goal with
@@ -99,9 +95,9 @@ Ltac simpl_eq_rect_exist :=
      rewrite (eq_rect_exist (Q:=P) q H H' p prf)
  end.
 
-Lemma eq_rect_pi {A : Prop} {Q : A -> Type} (p q : A) (x : forall x : A, Q x) :
-  eq_rect p Q (x p) q (proof_irrelevance A p q) = x q.
-Proof. set(foo:=proof_irrelevance A p q). destruct foo. simpl. reflexivity. Qed.
+(* Lemma eq_rect_pi {A : Prop} {Q : A -> Type} (p q : A) (x : forall x : A, Q x) : *)
+(*   eq_rect p Q (x p) q (proof_irrelevance A p q) = x q. *)
+(* Proof. set(foo:=proof_irrelevance A p q). destruct foo. simpl. reflexivity. Qed. *)
 
 (* To control backtracking during proof search *)
 Class Tried (P : Type).
@@ -124,7 +120,6 @@ Module Type Condition.
   Parameter P : Type.
   Parameter le : relation P.
   Declare Instance le_pre : PreOrder le.
-  Parameter le_pi : forall x y (p q : le x y), p = q.
 
   Delimit Scope forcing_scope with forcing.
   Notation " x <= y " := (le x y) : forcing_scope.
@@ -144,9 +139,6 @@ Module NatCondition <: Condition.
 
   Instance le_pre : PreOrder le.
   Proof. split; red; intros. apply le_n. eapply le_trans; eauto. Qed.
-
-  Lemma le_pi : forall x y (p q : le x y), p = q.
-  Proof. intros. apply proof_irrelevance. Defined.
 
   Delimit Scope forcing_scope with forcing.
   Notation " x <= y " := (le x y) : forcing_scope.
@@ -220,7 +212,7 @@ Module Forcing(F : Condition).
   Hint Extern 3 (Iota ?p ?sp ?q) => apply_iota_compose p sp q : typeclass_instances.
 *)
   Hint Extern 0 (_ <= _) => apply reflexivity : forcing. 
-  Hint Extern 0 (_ = _) => try f_equal ; apply le_pi : forcing.
+  Hint Extern 0 (_ = _) => try f_equal ; reflexivity : forcing.
   
 (*   Goal forall p sp q r (iop : Iota p sp q), Iota q (iota sp) r -> Iota p sp r. *)
 (*   Proof. intros. typeclasses eauto. Qed. *)
@@ -234,8 +226,8 @@ Module Forcing(F : Condition).
   Ltac prog_forcing := auto with forcing.
   Obligation Tactic := program_simpl ; prog_forcing.
 
-  Lemma trans_refl_l (x y : P) (prf : x <= y) : transitivity (reflexivity x) prf = prf.
-  Proof. apply le_pi. Defined.
+  (* Lemma trans_refl_l (x y : P) (prf : x <= y) : transitivity (reflexivity x) prf = prf. *)
+  (* Proof. apply le_pi. Defined. *)
 
 (*  Section Translation.
 
@@ -329,23 +321,20 @@ Module Forcing(F : Condition).
   Program Lemma subp_inj {p} (q : subp p) (r : subp q) : r <= p.
   Proof. intros. destruct q, r; simpl in *. now transitivity x. Defined.
     
-  Program Lemma ι {p} {q : subp p} (r : subp q) : subp p.
-  Proof. intros. exists (r). destruct q, r; simpl in *. now transitivity x. Defined.
+  Program Definition ι {p} {q : subp p} (r : subp q) : subp p := subp_proj r.
+  Next Obligation. Proof. destruct q, r; simpl in *. now transitivity x. Defined.
 
-  Program Lemma ι_lift {p} {q : subp p} (r : subp q) : subp (ι r).
-  Proof. intros. exists (r). destruct r; reflexivity. Defined.
+  Program Definition ι_lift {p} {q : subp p} (r : subp q) : subp (ι r) := r.
 
   Program Lemma ι_inj {p} {q : subp p} (r : subp q) : subp_proj r = (ι r).
-  Proof. intros. destruct r. simpl. unfold ι. simpl. destruct q. simpl. reflexivity. Defined.
+  Proof. intros. destruct r. simpl. reflexivity. Defined.
 
-  Definition ι_ι {p} {q : subp p} {r : subp q} (s : subp r) : subp (ι r).
-  Proof. exists s. rewrite <- ι_inj. apply (proj2_sig s). Defined.
+  Program Definition ι_ι {p} {q : subp p} {r : subp q} (s : subp r) : subp (ι r) := s.
 
-  Program Lemma ι_refl {p} (q : subp p) : subp (q).
-  Proof. intros. exists q. reflexivity. Defined.
+  Program Definition ι_refl {p} (q : subp p) : subp (q) := q.
 
   Lemma ι_ι_refl {p} (q : subp p) : ι (ι_refl q) = q.
-  Proof. unfold ι, ι_refl. simpl. destruct q. simpl. f_equal. apply le_pi. Defined.
+  Proof. unfold ι, ι_refl. simpl. destruct q. simpl. reflexivity. Defined.
 
   Obligation Tactic := program_simpl ; prog_forcing.
 
@@ -359,15 +348,13 @@ Module Forcing(F : Condition).
 
       Notation " 'rewrite' p 'in' x " := (eq_rect _ _ x _ p) (at level 10).
 
-      Definition refl (Θ : transport f) :=
-        forall q : subp p, forall x : f q, 
+      Program Definition refl (Θ : transport f) :=
+        forall q : subp p, forall x : f q,
           (rewrite (ι_ι_refl q) in (Θ q (ι_refl q) x)) = x.
       
       Program Definition trans (Θ : transport f) := 
         forall q : subp p, forall r : subp q, forall s : subp r,
           forall x, ((Θ (ι r) (ι_ι s)) ∘ (Θ q r)) x = Θ q (ι s) x.
-    
-      Next Obligation. unfold ι, ι_ι. simpl. f_equal. apply le_pi. Defined.
 
     End Sheaf.
 
@@ -398,67 +385,22 @@ Module Forcing(F : Condition).
       (f : sheaf q) : sheaf r :=
         existT (fun s => sheaf_f f (ι s))
         (λ s : subp r, λ t : subp s, λ x : sheaf_f f (ι s),
-          (Θ f (ι s) (ι_ι t) x) : sheaf_f f (ι_ι t)).
-
-    Next Obligation. intros. unfold ι, ι_ι; simpl. f_equal. apply le_pi. Defined.
+          (Θ f (ι s) t x)). 
 
     Notation " '(Σ' x , y ) " := (exist _ x y).
     Next Obligation. split. intros. 
-      red. intros. destruct q0. simpl. rewrite eq_trans_eq_refl_l.
-      unfold subp. simpl. unfold ι. simpl.
-      rewrite eq_rect_f_equal.
-      simpl. destruct r; simpl.
-      unfold sheafC_obligation_1. simpl.
-      rewrite eq_trans_eq_refl_l. simpl.
-      rewrite eq_rect_f_equal. simpl.
-      destruct f; simpl. 
-      unfold ι_ι. simpl. 
-      set(theprf :=
-        (transitivity (x:=x0) (y:=x0) (z:=q) (reflexivity x0)
-          (transitivity (x:=x0) (y:=x1) (z:=q) l l0))). abstract_eq_proofs.
-      revert theprf eqH0 x.
-      destruct eqH. subst l1. intros. simpl. 
-      unfold ι in *. simpl in *. subst theprf.
-      revert eqH0 x.
-      rewrite (trans_refl_l x0 x1 l).
-      set (ll0:=transitivity (x:=x0) (y:=x1) (z:=q) l l0).
-      clearbody ll0. intros.
-      destruct s. destruct a as [re tr].
-      red in re. 
-      on_call @Θ ltac:(fun c => set (foo := c)).
-      unfold ι in foo. simpl in *.
-      pose (re (subp_intro x0 ll0) x). rewrite <- e.
-      unfold ι, ι_refl. simpl. rewrite eq_trans_eq_refl_l.
-      rewrite eq_rect_f_equal. f_equal. pi.
+      red. intros. destruct q0. simpl. 
+      destruct f. simpl in *.
+      destruct s as [θ [Hr Ht]]. 
+      red in Hr. pose (Hr _ x). simpl in *.
+      rewrite <- e at 2. unfold Θ. simpl. reflexivity.
 
       (* Trans *)
-      pose (sheaf_trans f).
-      match goal with [ |- trans (fun s t x => @?X s t x) ] => set(term:=X) end.
-      unfold trans. intros.
-      unfold trans_obligation_1; simpl.
-      rewrite !eq_trans_eq_refl_l.
-      unfold ι. simpl.
-      rewrite eq_rect_f_equal. simpl. 
-      destruct q0, r, r0, s; simpl in *. 
-      unfold compose; subst term. simpl. 
-      unfold sheafC_obligation_1. simpl.
-      rewrite !eq_trans_eq_refl_l.
-      unfold ι, ι_ι. simpl.
-      rewrite !eq_rect_f_equal.
-      set (theprf :=      (transitivity l2 (transitivity l1 l))).
-      abstract_eq_proofs.
-      destruct eqH1. simpl.
-      set (theprf := (transitivity (transitivity (transitivity l2 l1) l) l0)) in *.
-      destruct eqH2. simpl.
-      set (theprf := (transitivity (transitivity l1 l) l0)) in *.
-      destruct eqH0. simpl.
-      specialize (t (subp_intro x0 (transitivity l l0)) (subp_intro x2 l1) (subp_intro x3 l2) x).
-      unfold subp_intro, subp_intro_obligation_1, ι, ι_ι in t. simpl in t. unfold compose in t. 
-      rewrite t. clear t.
-      unfold trans_obligation_1. simpl.
-      rewrite !eq_trans_eq_refl_l.
-      rewrite eq_rect_f_equal.
-      rewrite eq_rect_comm. reflexivity.
+      pose proof (sheaf_trans f).
+      red. intros. unfold compose. destruct f; simpl in *.
+      destruct s0 as [θ [Hr Ht]]. 
+      red in Ht. pose (Ht (ι q0) r0 s x). unfold compose in *. simpl in *.
+      unfold Θ. simpl. rewrite <- e. reflexivity.
     Qed.
 
     (*

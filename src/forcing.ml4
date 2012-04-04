@@ -59,7 +59,7 @@ let typecheck_rel_context evd ctx =
     List.fold_right
       (fun (na, b, t as rel) env ->
 	 check_type env evd t;
-	 Option.iter (fun c -> check_term env evd c t) b;
+	 iter_body (fun c -> check_term env evd c t) b;
 	 push_rel rel env)
       ctx (Global.env ())
   in ()
@@ -293,8 +293,8 @@ module Forcing(F : ForcingCond) = struct
     mk_cond_prod rn (subpt p)
     (mk_cond_prod sn (subpt (mk_var rn))
      (mk_var_prod na t' (mk_var rn [])
-      (mk_appc (Lazy.force coq_eqtype)
-       [ mk_ty_hole; mk_ty_hole; mk_hole;
+      (mk_appc (Lazy.force coq_eq)
+       [ mk_ty_hole; (* mk_ty_hole; mk_hole; *)
 	 simpl (mk_app (restriction u' (mk_var rn) (mk_var sn)) 
 		[mk_app m [mk_var rn; mk_var na]]);
 	 mk_app m [mk_var sn; 
@@ -477,26 +477,32 @@ module Forcing(F : ForcingCond) = struct
     let dt = meta_to_holes dt in
       sigma, dt
 
+  let interp env evs term = 
+    let j, _ = Pretyping.understand_judgment_tcc evs env term in
+      j.uj_val, j.uj_type
+
   let tac i c = fun gs ->
     let env = pf_env gs and sigma = Refiner.project gs in
     let evars, term' = translate trans c env sigma in
     let evs = ref evars in
-    let term'', ty = Subtac_pretyping.interp env evs term' None in
+    let term'', ty = interp env evs term' in
       tclTHEN (tclEVARS !evs) 
       (letin_tac None (Name i) term'' None onConcl) gs
 
   (** Define [id] as the translation of [c] (with term and restriction map) *)
   let command id tr ?hook c =
     let env = Global.env () and sigma = Evd.empty in
+    let mode = 
+      let m = !Flags.program_mode in
+	Flags.program_mode := true; m in
     let c = Constrintern.interp_constr sigma env c in
     let evars, term' = translate tr c env sigma in
     let evs = ref evars in
-    let term'', ty = Subtac_pretyping.interp env evs term' None in
-    let evm' = Subtac_utils.evars_of_term !evs Evd.empty term'' in
-    let evm' = Subtac_utils.evars_of_term !evs evm' ty in
-    let evars, _, def, ty = Eterm.eterm_obligations env id !evs evm' 0 term'' ty in
+    let term, ty = interp env evs term' in
+    let _ = Flags.program_mode := mode in
+    let evars, _, def, ty = Obligations.eterm_obligations env id !evs 0 term ty in
     let hook = Option.map (fun f -> f c) hook in
-      ignore (Subtac_obligations.add_definition id ~term:def ?hook ty evars)
+      ignore (Obligations.add_definition id ~term:def ?hook ty evars)
 
   open Decl_kinds
   open Global
@@ -518,9 +524,9 @@ module Forcing(F : ForcingCond) = struct
       in
       let id' = add_suffix id "_inst" in
       let evars, _, def, ty = 
-	Eterm.eterm_obligations env id' evars evars 0 (Option.get body) types 
+	Obligations.eterm_obligations env id' evars 0 (Option.get body) types 
       in
-	ignore (Subtac_obligations.add_definition id' ~term:def 
+	ignore (Obligations.add_definition id' ~term:def 
 		~hook:(fun loc gr ->
 		       Typeclasses.add_instance
 		       (Typeclasses.new_instance forcing_class None false gr))

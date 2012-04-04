@@ -1,4 +1,3 @@
-(* -*- compile-command: "make -k -C .. src/unicoq_plugin.cma src/unicoq_plugin.cmxs" -*- *)
 (************************************************************************)
 (*  v      *   The Coq Proof Assistant  /  The Coq Development Team     *)
 (* <O___,, * CNRS-Ecole Polytechnique-INRIA Futurs-Universite Paris Sud *)
@@ -103,7 +102,7 @@ let mkHRefl t x =
 let lift_rel_contextn k n sign =
   let rec liftrec k = function
     | (na,c,t)::sign ->
-	(na,Option.map (liftn n k) c,liftn n k t)::(liftrec (k-1) sign)
+	(na,map_body (liftn n k) c,liftn n k t)::(liftrec (k-1) sign)
     | [] -> []
   in
   liftrec (rel_context_length sign + k) sign
