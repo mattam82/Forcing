@@ -260,7 +260,7 @@ module Forcing(F : ForcingCond) = struct
 	return (simplc args.(3))
       | _ ->
 	mk_appc (Lazy.force coq_pi2) [mk_ty_hole; mk_ty_hole; simpl (return tr)]
-    in simpl (mk_app (term tr) [iota p; iota q])
+    in simpl (mk_app (term tr) [iota p; q])
 
   let mk_cond_abs abs na t b = fun sigma ->
     abs (Name na, t sigma, b sigma)

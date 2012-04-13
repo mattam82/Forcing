@@ -242,11 +242,21 @@ Module Forcing(F : Condition).
   Proof. exact (iota t). Defined.
 
   Example three_trans p (q : subp p) (r : subp q) (s : subp r) (t : subp s) (u : subp t) : subp q.
-  Proof. exact (iota u). Defined.
+  Proof. exact (iota u). Show Proof. Defined.
+
+    (* Maybe use those instances more? *)
+  Global Instance one_trans_inst p (q : subp p) (r : subp q) (s : subp r) : Iota _ s q := { iota := iota s }.
+  Proof. reflexivity. Defined.
+
+  Global Instance two_trans_inst p (q : subp p) (r : subp q) (s : subp r) (t : subp s) : Iota _ t q := { iota := iota t }.
+  Proof. reflexivity. Defined.
+
+  Global Instance three_trans_inst p (q : subp p) (r : subp q) (s : subp r) (t : subp s) (u : subp t) : Iota _ u q := {iota := iota u}.
+  Proof. reflexivity. Defined.
 
   Example four_trans p (q : subp p) (r : subp q) (s : subp r) (t : subp s) (u : subp t) (v : subp u) 
   : subp q.
-  Proof. exact (iota v). Defined.
+  Proof. exact (iota v). Show Proof. Defined.
 
   Ltac prog_forcing := auto with forcing.
   Obligation Tactic := program_simpl ; prog_forcing.
@@ -263,18 +273,19 @@ Module Forcing(F : Condition).
 
       Definition refl (Θ : transport f) :=
         forall q : subp p, forall x : f q, 
-          (rewrite (iota_iota_refl q) in (Θ q (iota q) x)) = x.
+          Θ q (iota q) x = x.
       
-      Program Definition trans (Θ : transport f) := 
+      Definition trans (Θ : transport f) := 
         forall q : subp p, forall r : subp q, forall s : subp r,
-          forall x, ((Θ (iota r) (iota s)) ∘ (Θ q r)) x = Θ q (iota s) x.
+          forall x, ((Θ (iota r) s) ∘ (Θ q r)) x = Θ q (iota s) x.
+
+      Definition trans_prop (Θ : transport f) := 
+        refl Θ /\ trans Θ.
 
     End Sheaf.
 
     Definition sheaf (p : P) :=
-      { sheaf_f : subp p -> Type &
-        { Θ : transport sheaf_f |
-          refl Θ /\ trans Θ } }.
+      { sheaf_f : subp p -> Type & sig (@trans_prop p sheaf_f) }.
 
     Definition sheaf_f {p : P} (s : sheaf p) : subp p -> Type :=
       projT1 s.
@@ -283,22 +294,22 @@ Module Forcing(F : Condition).
       projT2 s.
 
     Definition sheaf_refl {p} (s : sheaf p) : refl (Θ s).
-    Proof. unfold Θ. destruct s. destruct s. destruct a. simpl. assumption. Defined.
+    Proof. unfold Θ. destruct s. destruct s. destruct t. simpl. assumption. Defined.
 
     Definition sheaf_trans {p} (s : sheaf p) : trans (Θ s).
-    Proof. unfold Θ. destruct s. destruct s. destruct a. simpl. assumption. Defined.
+    Proof. unfold Θ. destruct s. destruct s. destruct t. simpl. assumption. Defined.
 
     Program Definition sheafC (p : P) (q : subp p) (r : subp q) 
       (f : sheaf q) : sheaf r :=
         existT (fun s => sheaf_f f (iota s))
         (λ s : subp r, λ t : subp s, λ x : sheaf_f f (iota s),
-          (Θ f (iota s) (iota t) x) : sheaf_f f (iota t)).
+          (Θ f (iota s) t x)). 
 
     Notation " '{Σ'  x } " := (exist x _).
 
     Next Obligation. split; red. intros. 
       simpl.
-      destruct q0. simpl. unfold eq_rect. 
+      destruct q0. simpl. 
       destruct f. simpl in *.
       destruct s as [θ [Hr Ht]]. 
       red in Hr. pose (Hr _ x). simpl in *.
@@ -311,209 +322,6 @@ Module Forcing(F : Condition).
       red in Ht. pose (Ht (iota q0) r0 s x). unfold compose in *. simpl in *.
       unfold Θ. simpl. rewrite <- e. destruct r0; reflexivity.
     Qed.
-
-
-  (** The injection from P_q to P_p with q <= p *)
-(*
-  Program Definition ι' {p q} (sq : subp q) (π : q <= p) : subp p := sq.
-  Next Obligation.
-  Proof.  destruct sq. simpl. now transitivity q. Defined.
-
-  Program Lemma subp_inj {p} (q : subp p) (r : subp q) : r <= p.
-  Proof. intros. destruct q, r; simpl in *. now transitivity x. Defined.
-    
-  Program Definition ι {p} {q : subp p} (r : subp q) : subp p := subp_proj r.
-  Next Obligation. Proof. destruct q, r; simpl in *. now transitivity x. Defined.
-
-  Program Definition ι_lift {p} {q : subp p} (r : subp q) : subp (ι r) := r.
-
-  Program Lemma ι_inj {p} {q : subp p} (r : subp q) : subp_proj r = (ι r).
-  Proof. intros. destruct r. simpl. reflexivity. Defined.
-
-  Program Definition ι_ι {p} {q : subp p} {r : subp q} (s : subp r) : subp (ι r) := s.
-
-  Program Definition ι_refl {p} (q : subp p) : subp (q) := q.
-
-  Lemma ι_ι_refl {p} (q : subp p) : ι (ι_refl q) = q.
-  Proof. unfold ι, ι_refl. simpl. destruct q. simpl. reflexivity. Defined.
-
-  Obligation Tactic := program_simpl ; prog_forcing.
-
-  Section Translation.
-
-    Definition transport {p} (f : subp p → Type) :=
-      forall q : subp p, forall r : subp q, arrow (f q) (f (ι r)).
-
-    Section Sheaf.
-      Context {p} {f : subp p -> Type}.
-
-      Notation " 'rewrite' p 'in' x " := (eq_rect _ _ x _ p) (at level 10).
-
-      Program Definition refl (Θ : transport f) :=
-        forall q : subp p, forall x : f q,
-          (rewrite (ι_ι_refl q) in (Θ q (ι_refl q) x)) = x.
-      
-      Program Definition trans (Θ : transport f) := 
-        forall q : subp p, forall r : subp q, forall s : subp r,
-          forall x, ((Θ (ι r) (ι_ι s)) ∘ (Θ q r)) x = Θ q (ι s) x.
-
-    End Sheaf.
-
-(*     Record sheaf (p : P) := *)
-(*       { sheaf_f : subp p → Type ;  *)
-(*         Θ : transport sheaf_f ; *)
-(*         sheaf_refl : refl Θ ; *)
-(*         sheaf_trans : trans Θ }. *)
-
-    Definition sheaf (p : P) :=
-      { sheaf_f : subp p -> Type &
-        { Θ : transport sheaf_f |
-          refl Θ /\ trans Θ } }.
-
-    Definition sheaf_f {p : P} (s : sheaf p) : subp p -> Type :=
-      projT1 s.
-
-    Program Definition Θ {p : P} (s : sheaf p) : transport (sheaf_f s) :=
-      projT2 s.
-
-    Definition sheaf_refl {p} (s : sheaf p) : refl (Θ s).
-    Proof. unfold Θ. destruct s. destruct s. destruct a. simpl. assumption. Defined.
-
-    Definition sheaf_trans {p} (s : sheaf p) : trans (Θ s).
-    Proof. unfold Θ. destruct s. destruct s. destruct a. simpl. assumption. Defined.
-
-    Program Definition sheafC (p : P) (q : subp p) (r : subp q) 
-      (f : sheaf q) : sheaf r :=
-        existT (fun s => sheaf_f f (ι s))
-        (λ s : subp r, λ t : subp s, λ x : sheaf_f f (ι s),
-          (Θ f (ι s) t x)). 
-
-    Notation " '(Σ' x , y ) " := (exist _ x y).
-    Next Obligation. split. intros. 
-      red. intros. destruct q0. simpl. 
-      destruct f. simpl in *.
-      destruct s as [θ [Hr Ht]]. 
-      red in Hr. pose (Hr _ x). simpl in *.
-      rewrite <- e at 2. unfold Θ. simpl. reflexivity.
-
-      (* Trans *)
-      pose proof (sheaf_trans f).
-      red. intros. unfold compose. destruct f; simpl in *.
-      destruct s0 as [θ [Hr Ht]]. 
-      red in Ht. pose (Ht (ι q0) r0 s x). unfold compose in *. simpl in *.
-      unfold Θ. simpl. rewrite <- e. reflexivity.
-    Qed.
-*)
-    (*
-    Program Definition I_s (p : P) : sheaf p := {|
-      sheaf_f q := sheaf (`q); 
-      Θ := sheafC p |}.
-
-    Lemma app_irrel {A} {Q : A -> Prop} 
-      (B : Type) (f : sig Q -> B) 
-      (x : sig Q) (prf : Q (`x)) : f x = f (Σ `x, prf).
-    Proof. destruct x. f_equal. simpl. f_equal. pi. Qed.
-
-    Lemma app_dep_irrel {A} {Q : A -> Prop} 
-      (B : A -> Type) (f : forall x : sig Q, B (` x))
-      (x : sig Q) (prf : Q (`x)) : f x = f (Σ `x, prf).
-    Proof. destruct x. simpl in *. rewrite (proof_irrelevance _ q prf). reflexivity. Qed.
-
-    Require Import Setoid Morphisms.
-
-    Notation " 'rew' p 'in' x " := (eq_rect _ _ x _ p) (at level 10, only parsing).
-
-    Lemma eq_sheafs (p : P) (x y : sheaf p) : 
-      forall eq : sheaf_f p x = sheaf_f p y,
-        rew eq in (Θ p x) = Θ p y -> x = y.
-    Proof.
-      destruct x, y; simpl.
-      intros. destruct eq. simpl in *. subst Θ0. f_equal. pi. pi.
-    Qed.
-    
-    Instance proper_extensionality {A} {B: Type} (f : A -> B) : 
-      Proper (pointwise_relation A eq) f.
-    Proof. intro. reflexivity. Defined.
-
-    Instance proper_forall_eq {A} {B: A -> Type} (f : forall x : A, B x) :
-      (forall (a : A) (R : relation (B a)), Proper R (f a)) ->
-      Proper (forall_relation (fun x : A => eq)) f.
-    Proof. intro. intro. reflexivity. Defined.
-
-    Next Obligation.
-    Proof. red. intros.
-      unfold ι_ι_refl. 
-      destruct q. simpl. rewrite eq_trans_eq_refl_l.
-      unfold ι, ι_refl.
-      rewrite eq_rect_f_equal. abstract_eq_proofs. destruct eqH.
-      simpl in *.
-      subst l0.
-      assert(sheaf_f x0 (sheafC p (Σx0, l) (exist (fun x => x <= x0) x0 (reflexivity x0)) x) =
-        sheaf_f x0 x).
-      destruct x. simpl. extensionality y.
-      symmetry ; apply app_irrel.
-      symmetry. symmetry in H.
-      apply eq_sheafs with H.
-      destruct x. simpl in *.
-      unfold sheafC_obligation_1.
-      simpl.
-      extensionality s. extensionality s'; extensionality s''.
-      rewrite eq_trans_eq_refl_l. unfold ι. rewrite eq_rect_f_equal.
-      destruct s, s'; simpl in *.
-      unfold ι in *. simpl in *. 
-      set (theprf:=         (transitivity (x:=x1) (y:=x0) (z:=x0)
-            (transitivity (x:=x1) (y:=x) (z:=x0) l1 l0) 
-            (reflexivity x0))) in *.
-      unfold ι_ι. simpl.
-      unfold transport.
-      rewrite !eq_rect_f.
-      assert((λ x, sheaf_f0 x) = sheaf_f0) by reflexivity.
-      revert s''. 
-      revert H Θ0 sheaf_refl0 sheaf_trans0. destruct H0. subst sheaf_f1.
-      intros. subst theprf.
-      abstract_eq_proofs. 
-      assert(transitivity l0 (reflexivity x0) = l0). apply le_pi.
-      assert 
-        (Θ0 (Σx, l0) (Σx1, l1)
-          (rew H0 in s'') = (Θ0 (Σx, transitivity (x:=x) (y:=x0) (z:=x0) l0 (reflexivity x0))
-          (Σx1, l1))).
-      
-
-      revert s''.
-      revert_until H. revert H.
-
-      change (sheaf_f0
-           (Σx, transitivity (x:=x) (y:=x0) (z:=x0) l0 (reflexivity x0))) with
-      ((fun f => f
-           (Σx, transitivity (x:=x) (y:=x0) (z:=x0) l0 (reflexivity x0))) 
-      (fun x : subp x0 => sheaf_f0 x)).
-      pattern (λ x : subp x0, sheaf_f0 x).
-      
-      Lemma eq_rect_f {Q B} (f g : sig Q -> B) (P : (sig Q -> B) -> Type) 
-        (pf : P f) (prf : f = g) : 
-        eq_rect (λ x, f x) P pf (λ x, g x) prf x = 
-        eq_rect f (fun f : A -> B => P f x) (pf x) g prf. 
-      Proof. destruct prf. simpl. reflexivity. Qed.
-
-      pattern (transitivity l0 (reflexivity x0)).
-
-revert s''.      
-      rewrite H.
-      
-      
-
-      destruct x.
-      unfold sheafC. simpl.
-      unfold ι. simpl. (* setoid_rewrite <- (app_irrel _ sheaf_f0) at 1. *)
-      unfold sheafC_obligation_1. simpl. setoid_rewrite eq_trans_eq_refl_l.
-
-      destruct x. simpl. unfold ι at 1. simpl.
-      assert sheaf_f0 = (
-      Set Printing All. idtac.
-      Check (fun s : subp x0 => ι s).
-
-      unfold ι. simpl. dexs
-      *)
 
   End Translation.
 
