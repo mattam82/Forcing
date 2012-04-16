@@ -234,13 +234,6 @@ Next Obligation of subp0.
   red. auto with arith.
 Defined.
 
-(* Fixpoint subp_rect {q : nat} (P : subp q -> Type)  *)
-(*                    (p0 : P subp0) (pS : forall r : subp q, P r -> P (Pred_to_sub q r)) *)
-(*                    (r : subp q) : P r := *)
-(*   match (r : subp q) return P r with *)
-(*     | exist 0 prf => p0 *)
-(*     | exist (S n) prf => pS n (subp_rect P p0 pS n) *)
-(*   end. *)
 Require Import Wf.
 
 Lemma le_decr : forall n m, S n <= m -> n <= m.
@@ -262,56 +255,12 @@ Definition subp_rect {q : nat} (P : subp q -> Type)
   let (r, rprf) as r' return P r' := r in
     subp_rect_aux P p0 pS r rprf.
 
-
-Definition 
-  innerfn :=
-  fun p =>
-    (fun (r : subp p) (arg : sheaf r) =>
-       (fun (r1 : subp r) 
-            (f2 : {f2
-    : ∀ r2 : subp r1,
-      later_sheaf_f (iota r2) (sheafC r (iota r) (iota r2) arg) (iota r2)
-      → projT1 (sheafC r (iota r) (iota r2) arg) (iota r2) |
-    ∀ (r2 : subp r1) (s2 : subp r2)
-    (arg2 : later_sheaf_f (iota r2) (sheafC r (iota r) (iota r2) arg) (iota r2)),
-    (` (projT2 (sheafC r (iota r) (iota r2) arg))) 
-      (iota r2) (iota s2) (f2 r2 arg2) =
-    f2 (iota s2)
-      (later_transp (iota r2) (sheafC r (iota r) (iota r2) arg) 
-         (iota r2) (iota s2) arg2)}) =>
-                subp_rect (fun r : subp r1 => sheaf_f arg (iota r))
-                          (` f2 (subp0 _) tt) 
-                          (fun (r' : Pred (`r1)) a => ` f2 (succ_of_Pred _ r') a)
-                          (iota r1))).
-
-
-            
-Obligation Tactic := idtac.
-
 Forcing Operator fixp : (forall T : Type, (later T -> T) -> T).
 
 Obligation Tactic := idtac.
 Next Obligation.
   intros. 
-  unfold iota. simpl. destruct r, r1, r2; simpl in *; unfold le in *; auto with arith.
-  now transitivity x0.
-Qed.
-
-Next Obligation. 
-  simpl; intros. 
-  unfold iota. simpl. destruct r, r1, r2; simpl in *; unfold le in *; auto with arith.
-  now transitivity x0.
-Qed.
-
-Next Obligation.
-  simpl; intros.
-  clear. destruct r1, s1, s2.
-  simpl in *; eauto with arith. now transitivity x0.
-Qed.
-
-Next Obligation.
   Opaque later_transp.
-  intros.
   destruct arg1 as [f2 Hf2].
   simpl in *.
   apply (Hf2 (iota r2) s2 arg2).
@@ -326,83 +275,64 @@ Qed.
 Global Program Instance iota_iota p (q : subp p) (r : P) {I : Iota p q r} : Iota p q (iota (Iota:=I) q : P) | 1000 := { iota := iota q }.
 Next Obligation of iota_iota. intros. rewrite iota_identity. reflexivity. Qed.
 
-Program Definition secondfn :=
-          (fun p (r : subp p) (arg : sheaf r) =>
-             (exist (innerfn p r arg) _ : 
-              {f1
-     : ∀ r1 : subp r,
-       {f2
-       : ∀ r2 : subp r1,
-         later_sheaf_f (iota_refl r2) (sheafC r (iota r) (iota r2) arg)
-           (iota r2) → projT1 (sheafC r (iota r) (iota r2) arg) (iota r2) |
-       ∀ (r2 : subp r1) (s2 : ssubp r2)
-       (arg2 : later_sheaf_f (iota_refl r2) (sheafC r (iota r) (iota r2) arg)
-                 (iota r2)),
-       (` (projT2 (sheafC r (iota r) (iota r2) arg))) 
-         (iota r2) (iota s2) (f2 r2 arg2) =
-       f2 (iota s2)
-         (later_transp (iota_refl r2) (sheafC r (iota r) (iota r2) arg)
-            (iota r2) (iota s2) arg2)}
-       → projT1 (sheafC r (iota r) (iota r1) arg) {Σ ` r1} |
-     ∀ (r1 : subp r) (s1 : subp r1)
-     (arg1 : {f2
-             : ∀ r2 : subp r1,
+Program Definition secondinnerinnerfnty p (r : subp p) (arg : sheaf r) (r1 : subp r) :=
+ ∀ r2 : subp r1,
                later_sheaf_f (iota_refl r2) (sheafC r (iota r) (iota r2) arg)
-                 (iota r2) → projT1 (sheafC r (iota r) (iota r2) arg) (iota r2)
-             |
-             ∀ (r2 : subp r1) (s2 : ssubp r2)
-             (arg2 : later_sheaf_f (iota_refl r2)
-                       (sheafC r (iota r) (iota r2) arg) 
-                       (iota r2)),
+                             (iota r2) → projT1 (sheafC r (iota r) (iota r2) arg) (iota r2).
+
+Program Definition secondinnerinnerfnprop p (r : subp p) (arg : sheaf r) (r1 : subp r) 
+                                     (f2 : secondinnerinnerfnty p r arg r1) :=
+           ∀ (r2 : subp r1) (s2 : ssubp r2)
+             (arg2 : later_sheaf_f (iota_refl r2) (sheafC r (iota r) (iota r2) arg)
+                                   (iota r2)),
              (` (projT2 (sheafC r (iota r) (iota r2) arg))) 
                (iota r2) (iota s2) (f2 r2 arg2) =
-             f2 (iota s2)
+               f2 (iota s2)
                (later_transp (iota_refl r2) (sheafC r (iota r) (iota r2) arg)
-                  (iota r2) (iota s2) arg2)}),
-     (` (projT2 (sheafC r (iota r) (iota r1) arg))) 
-       (iota r1) (iota s1) (f1 r1 arg1) =
-     f1 (iota s1) {Σ λ s2 : subp s1, (` arg1) (iota s2 : subp r1)}})).
+                             (iota r2) (iota s2) arg2).
 
-Next Obligation of secondfn.
+Program Definition secondinnerfnty p (r : subp p) (arg : sheaf r) (r1 : subp r) :=
+          sig (secondinnerinnerfnprop p r arg r1).
+
+Program Definition secondfnty p (r : subp p) (arg : sheaf r) (r1 : subp r) :=
+          secondinnerfnty p r arg r1 → projT1 (sheafC r (iota r) (iota r1) arg) (iota r1).
+
+
+Example lif1 {p} {q : subp p} (r : subp q) : subp p.
+Proof. exact (iota r). Defined.
+
+Program Lemma secondfnprop_trans p (r : subp p) (arg : sheaf r) :
+          ∀ (r1 : subp r) (s1 : subp r1) (arg1 : secondinnerfnty p r arg r1),
+            secondinnerinnerfnprop p r arg (lif1 s1) (λ s2 : subp s1, (` arg1) (lif1 s2)).
   intros.
-  simpl. simpl in *.
-  destruct arg1.
-  simpl. pose proof (e (iota r2)).
-  apply H.
+  red in arg1.
+  destruct arg1 as [f2 Hf2].
+  red in Hf2. red. simpl.
+  intros. specialize (Hf2 (iota r2)).
+  simpl in Hf2.
+  apply Hf2.
 Qed.
 
-Next Obligation of secondfn.
-  simpl; intros.
-  destruct arg1 as [f2 Hf2].
-  pose proof (Hf2 (iota r1) s1).
-  simpl in H. simpl.
-  destruct arg as [sh [tr [Hr Htr]]].
-  unfold Θ in *; simpl in *.
-  destruct r1 as [r1 Hr1].
-  destruct s1 as [s1 Hs1].
-  destruct s1.
-  simpl.
-  destruct r1.
-  unfold innerfn; simpl.
-  unfold innerfn. simpl.
-  apply (H tt).
+Program Definition lift_secondinnerfn p (r : subp p) (arg : sheaf r) (r1 : subp r) (arg1 : secondinnerfnty p r arg r1) (s1 : subp r1) : secondinnerfnty p r arg (lif1 s1) :=
+          exist _ (secondfnprop_trans p r arg r1 s1 arg1).
 
-  unfold innerfn. simpl.
-  apply H.
+Program Definition secondfnprop p (r : subp p) (arg : sheaf r) (f1 : forall r1 : subp r, secondfnty p r arg r1) :=
+          ∀ (r1 : subp r) (s1 : subp r1)
+            (arg1 : secondinnerfnty p r arg r1),
+            ((` (projT2 (sheafC r (iota r) (iota r1) arg))) 
+               (iota r1) (iota s1) (f1 r1 arg1) =
+               f1 (iota s1) (lift_secondinnerfn p r arg r1 arg1 s1)).
 
-  destruct r1.
-  clear. elimtype False. inversion Hs1.
+Definition innerfn p (r : subp p) (arg : sheaf r) (r1 : subp r) : secondfnty p r arg r1 :=
+  fun (f2 : secondinnerfnty p r arg r1) =>
+    subp_rect (fun r : subp r1 => sheaf_f arg (iota r))
+                          (` f2 (subp0 _) tt) 
+                          (fun (r' : Pred (`r1)) a => ` f2 (succ_of_Pred _ r') a)
+                          (iota r1).
 
-  unfold innerfn; simpl.
-  unfold succ_of_Pred.
-  simpl. simpl in H.
-  rewrite H.
-  apply f_equal.
-  Transparent later_transp.
-  simpl.
-  unfold Θ. simpl.
-  unfold Θ. simpl.
-  
+Program Definition secondfn :=
+          (fun p (r : subp p) (arg : sheaf r) =>
+             (exist (innerfn p r arg) _ : sig (secondfnprop p r arg))).
 
 Program Definition lift_subp {p} (q : subp p) : subp (S p) := q.
 Next Obligation of lift_subp.
@@ -430,100 +360,64 @@ Next Obligation of subp_le.
   intros p [q Hq] ? ?. simpl; unfold le in *; eauto with arith.
 Qed.
 
-  idtac.
-  rewrite lift_subp_rect_aux with (prf':=.
-  unfold
-  unfold later_transp.
-  
 Ltac forward H :=
   match type of H with
     | forall X : ?T, _ => let arg := fresh in
                             assert (arg:T);[|specialize (H arg)]
   end.
 
-  forward H.
-  induction r1.
-  simpl.
-  unfold later_sheaf_f. simpl. exact tt.
-  simpl. unfold later_sheaf_f. simpl.
-  match type of H with ?x = _ => transitivity x end.
-  reflexivity.
-  rewrite H.
-  
 
-  unfold 
-  simpl.
-  unfold subp0. revert H. 
-  clear_subset_proofs.
-  intros H. rewrite H.
-rewrite H.
-  destruct s1.
-  simpl in l0.
-  inversion l0.
-  subst x0.
-  simpl.
-  Transparent later_transp.
-  simpl. reflexivity.
-
-  destruct s1.
+Next Obligation of secondfn.
+  simpl; intros.
+  intros [r1 Hr1]. 
+  induction r1; simpl; intros.
   unfold innerfn; simpl.
-  clear H. 
-  pose proof (e (iota_refl (S x0))).
-  unfold ssubp in H.
-  simpl in H.
-  specialize (H {Σ x1, l0}).
-  rewrite H.
-  clear H.
-  destruct x1.
-  simpl.
-  reflexivity.
+  unfold Θ in *; simpl in *.
+  red in arg1.
 
+  (* 0 *)
+  destruct s1 as [[|s1] Hs1].
+  simpl. 
+  pose (proj2_sig arg1 (subp0 0) (subp0 _)). apply e.
+  inversion Hs1.
 
-  simpl.
-  
-
-  unfold Θ.
-  simpl.
+  (* S n *)
+  Transparent later_transp.
+  forward IHr1; auto with arith forcing.
+  pose (proj2_sig arg1 (embed (S r1)) s1).
+  simpl in e.
+  unfold innerfn.
+  simpl. rewrite e. clear e.
+  destruct s1 as [[|s1] Hs1]; simpl; auto.
   apply f_equal.
-  
-  
+  unfold innerfn in IHr1.
+  simpl in *.
 
+  simpl.
+  assert(s1 <= r1) by auto with forcing arith.
+  assert(r1 <= r1) by reflexivity.
+  rewrite lift_subp_rect_aux with (prf':=H1).
+  rewrite lift_subp_rect_aux with (prf':=reflexivity s1 : s1 <= s1).
+  specialize (IHr1 {Σ s1, H0}).
+  simpl in IHr1.
+  repeat (unfold Θ in *; simpl in *).
+  specialize (IHr1 (lift_secondinnerfn p r arg _ arg1 (lift_subp (embed r1)))).
+  simpl in IHr1.
+  apply IHr1.
 Qed.
-
-
-Program Definition fix_trans : fixp_trans :=
-          fun p =>
-          (fun (r : subp p) (arg : sheaf r) =>
-             (fun (r1 : subp r) f2  => 
-                subp_rect (q:=r1) (fun r => sheaf_f arg r)
-                          (f2 (subp0 _) tt) 
-                          (fun r' a => f2 (succ_of_Pred (` r1) r') a)
-                          r1 _)).
-          
-
 
 Next Obligation.
   red.
-  simpl; intros.
-  refine (exist 
-            (fun (r : subp p) (arg : sheaf r) =>
-               exist (fun (r1 : subp r) f2  => 
-                        subp_rect (q:=` r1) (fun r => sheaf_f arg r1)
-                                  (f2 subp0 tt) 
-                                  (fun r' a => f2 (succ_of_Pred (` r1) r') a))
-                             _) _).
-                                
-
-
-  clear f.
-  destruct s1, s, r.
-  simpl in *; unfold le in *; eauto with arith.
+  intros p.
+  change {f : forall r arg, sig (secondfnprop p r arg) |
+             ∀ (r : subp p) (s : ssubp r) (arg : sheaf r),
+               (λ s1 : subp (` s), (` (f r arg)) (iota s1)) =
+                                                           ` (f (ι s) (sheafC r (ι r) s arg))}.
+  exists (secondfn p).
+  intros. reflexivity.
 Qed.
 
-
 Time Force foo := (forall X : Set, X).
-
-
 
 Time Force foo := (forall (f : nat -> Prop) (x : nat), f x).
 
