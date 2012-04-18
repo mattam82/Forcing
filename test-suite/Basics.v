@@ -60,17 +60,15 @@ Defined.
 
 Program Definition embed (p : P) : subp p := p.
 
-Forcing Operator later : (Type -> Type).
-
 Notation " '{Σ'  x } " := (exist x _).
 
 Lemma sigma_eq {A} {P : A -> Prop} (x y : A) (p : P x) (q : P y) : x = y -> {Σx, p} = {Σ y, q}. 
 Proof. intros ->. reflexivity. Qed.
 
-Next Obligation.
-  red. intros.
-  assert(forall p (q : subp p) (T : sheaf q), refl (later_transp q T) /\ trans (later_transp q T)). 
-  intros.
+Forcing Operator later : (Type -> Type).
+
+Lemma later_transp_transport p (q : subp p) (T : sheaf q) : trans_prop (later_transp q T).
+Proof. red; intros.
   split; red; intros.
   destruct T as [s [trans prf]]. 
   destruct prf. red in r.
@@ -116,13 +114,19 @@ Next Obligation.
   unfold later_sheaf_f in x0.
   simpl in x0. specialize (H1 x0).
   apply H1.
+Qed.
 
-  refine (exist (λ q : subp p, λ T : sheaf q,
-    existT (later_sheaf_f q T) (exist (later_transp q T) (H p q T))) _).
-  intros.
+Program Definition later_trans_sheaf {p : nat} (q : subp p) (T : sheaf q) : sheaf q :=
+          existT (later_sheaf_f q T) (exist (later_transp q T) (later_transp_transport p q T)).
+
+Program Definition later_trans_impl : later_trans :=
+          fun p : nat => exist later_trans_sheaf _.
+
+Next Obligation of later_trans_impl.
+  red. intros. simpl.
   unfold sheafC. simpl. 
   destruct arg as [sh [transp [rt tt]]].
-  simpl. apply f_equal. apply sigma_eq.
+  simpl. unfold later_trans_sheaf. apply f_equal. apply sigma_eq.
   unfold Θ. simpl.
   extensionality s0.
   extensionality t.
@@ -133,16 +137,24 @@ Next Obligation.
   apply f_equal.
   destruct s0.
   simpl. destruct x1; reflexivity. 
+Qed.
+
+Next Obligation.
+  red.
+  intros.
+  exact (later_trans_impl p).
 Defined.
 
 Implicit Arguments forcing_traduction [[A] [ForcingOp]].
 
 Notation " '{Σ' x } " := (exist x _).
+Set Printing All.
+Set Typeclasses Debug.
 
 Time Forcing Operator next : (forall T : Set, T -> later T).
 
 Notation ι r := (iota r).
-
+  
 Definition innernext_fnty {p} (r : subp p) (arg : sheaf r) :=
   ∀ r1 : subp r,
     sheaf_f arg r1
