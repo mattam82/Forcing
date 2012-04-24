@@ -9,6 +9,7 @@ Section Test.
   Import NatForcing.
   Import NatCondition.
    Open Scope forcing_scope.
+Hint Extern 4 => progress (unfold le in *) : forcing.
 
 Lemma subp_proof2 p (q : subp p) : ` q <= p. apply subp_proof. Defined.
 Hint Resolve subp_proof2 : forcing.
@@ -148,10 +149,15 @@ Defined.
 Implicit Arguments forcing_traduction [[A] [ForcingOp]].
 
 Notation " '{Σ' x } " := (exist x _).
-Set Printing All.
-Set Typeclasses Debug.
+
+Obligation Tactic := auto with forcing arith.
 
 Time Forcing Operator next : (forall T : Set, T -> later T).
+
+Next Obligation.
+  intros. red. simpl. intros r1.
+  apply (proj2_sig f1 (one_trans _ _ _ r1)).
+Qed.
 
 Notation ι r := (iota r).
   
@@ -179,8 +185,6 @@ Program Definition innernextfn {p} (r : subp p) (arg : sheaf r) : innernext_fnty
     end r1prf)).
 
 Program Definition innernext {p} (r : subp p) (arg : sheaf r) : innernext_ty r arg := innernextfn r arg.
-
-Hint Extern 4 => progress (unfold le in *) : forcing.
 
 Next Obligation of innernext.  
 Proof. Transparent later_transp. 
@@ -215,17 +219,59 @@ Unset Printing All.
 Check (fun p (r : subp p) (q : subp r) => 
          eq_refl : (q : P) = (iota q : subp p)).
 
-Next Obligation. 
+Next Obligation of next_inst. 
 Proof.
-  red. Opaque later_transp.
+  red.
   simpl. intros.
-  refine (exist (@innernext p) _). 
-  intros. 
-  apply (functional_extensionality_dep). 
-  intros. destruct x as [[|x'] Hx]. simpl.
+  Program Definition foo p : { x | next_transprop1 p (iota_refl p) x } :=
+            @innernext p.
+  Next Obligation of foo.
+    Proof. Transparent later_transp. 
+      intros.
+      pose proof (proj2_sig (innernext x x0)).
+      red; intros.
+      specialize (H r1 s1 arg1). 
+      simpl in H. simpl. now destruct s1.
+    Qed.
+  Next Obligation of foo.
+    Proof. Transparent later_transp. 
+      intros.
+      red; intros.
+  apply sigma_eq.
+  apply functional_extensionality_dep.
+  simpl; intros.
+  destruct x as [[|x'] Hx]. simpl.
   reflexivity.
   simpl.
   reflexivity.
+  Qed.
+
+  exact (foo p).
+Qed.
+
+Forcing Operator fixp : (forall T : Type, (later T -> T) -> T).
+
+Next Obligation.
+  intros.
+  Example zero_trans p (q : subp p) (r : subp q) : subp p.
+  Proof. exact (iota r). Defined.
+
+  change (   fixp_transprop p q r arg q2 r1 (zero_trans _ _ r3) (λ s2 : subp (zero_trans _ _ r3), (` f2) (zero_trans _ r3 s2 : subp q4))).
+  red.
+  destruct f2 as [f2 Hf2].
+
+  simpl in *. red in Hf2; simpl in Hf2.
+  intros; apply (Hf2 (iota r2) s2 arg2).
+Qed.
+
+Next Obligation.
+  intros.
+  simpl.
+  red. simpl.
+  intros.
+  simpl in *.
+  unfold fixp_transprop1 in f1. simpl in f1.
+  apply (proj2_sig f1 (iota r1) s1).
 Qed.
 
 Definition Pred (p : nat) := { x : nat | x < p }.
@@ -241,10 +287,6 @@ Next Obligation of succ_of_Pred.
 Defined.
 
 Program Definition subp0 (p : nat) : subp p := 0.
-Next Obligation of subp0.
-  intros; auto with arith.
-  red. auto with arith.
-Defined.
 
 Require Import Wf.
 
@@ -266,23 +308,6 @@ Definition subp_rect {q : nat} (P : subp q -> Type)
                 (r : subp q) : P r :=
   let (r, rprf) as r' return P r' := r in
     subp_rect_aux P p0 pS r rprf.
-
-Forcing Operator fixp : (forall T : Type, (later T -> T) -> T).
-
-Obligation Tactic := idtac.
-Next Obligation.
-  intros. 
-  Opaque later_transp.
-  destruct arg1 as [f2 Hf2].
-  simpl in *.
-  apply (Hf2 (iota r2) s2 arg2).
-Qed.
-
-Next Obligation.
-  simpl; intros.
-  clear. destruct s, s1, r.
-  simpl in *; eauto with arith. now transitivity x.
-Qed.
 
 Global Program Instance iota_iota p (q : subp p) (r : P) {I : Iota p q r} : Iota p q (iota (Iota:=I) q : P) | 1000 := { iota := iota q }.
 Next Obligation of iota_iota. intros. rewrite iota_identity. reflexivity. Qed.
@@ -347,11 +372,6 @@ Program Definition secondfn :=
              (exist (innerfn p r arg) _ : sig (secondfnprop p r arg))).
 
 Program Definition lift_subp {p} (q : subp p) : subp (S p) := q.
-Next Obligation of lift_subp.
-  intros p [q Hq].  
-  simpl; unfold le in *; auto with arith.
-Qed.
-
 Program Definition lift_Pred {p} (q : Pred p) : Pred (S p) := q.
 Next Obligation of lift_Pred.
   intros p [q Hq].  
@@ -368,16 +388,12 @@ Proof. induction r; simpl; auto.
   apply f_equal. apply IHr.
 Qed.
 Program Definition subp_le {p} (q : subp p) r (prf : p <= r) : subp r := q.
-Next Obligation of subp_le.
-  intros p [q Hq] ? ?. simpl; unfold le in *; eauto with arith.
-Qed.
 
 Ltac forward H :=
   match type of H with
     | forall X : ?T, _ => let arg := fresh in
                             assert (arg:T);[|specialize (H arg)]
   end.
-
 
 Next Obligation of secondfn.
   simpl; intros.
@@ -421,103 +437,8 @@ Qed.
 Next Obligation.
   red.
   intros p.
-  change {f : forall r arg, sig (secondfnprop p r arg) |
-             ∀ (r : subp p) (s : ssubp r) (arg : sheaf r),
-               (λ s1 : subp (` s), (` (f r arg)) (iota s1)) =
-                                                           ` (f (ι s) (sheafC r (ι r) s arg))}.
   exists (secondfn p).
-  intros. reflexivity.
+  red; intros. reflexivity.
 Qed.
 
-Time Force foo := (forall X : Set, X).
-
-Time Force foo := (forall (f : nat -> Prop) (x : nat), f x).
-
-Next Obligation. 
-  intros. destruct r. simpl in *.
-  unfold ι. clear_subset_proofs. 
-  specialize (H r4 s3 arg2).
-  unfold foo_obligation_2, eq_type in H; simpl in *. 
-  unfold subp in *; destruct_exists. simpl in *.
-  unfold foo_obligation_1 in H. simpl in H. revert H; clear_subset_proofs.
-  intros. rewrite <- H.
-  simpl. unfold ι; simpl; clear_subset_proofs. reflexivity.
-Defined.
-
-Next Obligation. 
-  unfold foo_obligation_2, eq_type in *; simpl in *. clear f.
-  unfold subp_proj in *.
-  clear_subset_proofs. unfold foo_obligation_1 in H. 
-  generalize (H (@exist _ (fun r' => r' <= ` r) (` r1) eqH0) s1 arg1). 
-  simpl in *. unfold subp_proj in *. clear_subset_proofs. intros. rewrite <- H0. reflexivity.
-Defined.
-
-Obligation Tactic := idtac.
-Next Obligation. 
-  intros. simpl proj1_sig.
-  unfold foo_obligation_11, eq_type in arg. simpl in arg.
-  unfold subp_proj in *.
-  destruct arg. clear_subset_proofs. specialize (e r4 s3 arg2).
-  revert e; clear_subset_proofs. simpl. intros.
-  rewrite <- e. simpl. 
-  unfold ι. unfold subp_proj in *. clear_subset_proofs. simpl. reflexivity.
-Defined.
-
-Next Obligation. 
-  intros. clear. eauto with forcing. 
-Defined. 
-
-Next Obligation. 
-  intros; clear. eauto with forcing. Defined.
-Next Obligation. 
-  intros; clear. eauto with arith forcing. Defined.
-Next Obligation. 
-  intros; clear. 
-  unfold foo_obligation_11, eq_type in *; simpl in *.
-  destruct arg. simpl. unfold subp_proj in *. clear_subset_proofs. 
-  specialize (e {Σ` r1, eqH} s1 arg1).
-  simpl in e. destruct r1; clear_subset_proofs. simpl in *. revert e. clear_subset_proofs.
-  intros. rewrite <- e. pi.
-Defined.
-
-Next Obligation. 
-  intros; clear. simpl. 
-  unfold foo_obligation_14 at 2. destruct r. simpl. destruct arg. simpl. clear_subset_proofs.
-
-Axiom prod_extensionality : forall A (B B' : A -> Type), (∀ x : A, B x = B' x) -> (∀ x : A, B x) = (∀ x : A, B' x).
-
-  do 2 (apply prod_extensionality; intros). clear_subset_proofs. pi. Defined.
-Next Obligation. intros.
-  clear. destruct s, r7; simpl in *; eauto with arith forcing.
-Defined.
-
-Print foo.
-  Force empty at p := (forall X : Set, X).
-
-  Next Obligation. f_equal.
-    unfold ι, ι_refl. simpl. pi. Defined.
-
-  Next Obligation. f_equal.
-    unfold ι, ι_refl. simpl. pi. Defined.
-
-  Program Definition foo := (projT1 empty p).
-
-  Eval hnf in foo.
-
-  Force identity at p := (forall X : Set, X -> X).
-
-  Notation " 'rewrite' p 'in' x " := (eq_rect _ _ x _ p) (at level 10).
-
-  Next Obligation. f_equal. unfold ι. simpl. pi. Defined.
-  Next Obligation. f_equal; unfold ι; simpl; pi. Defined.
-  Next Obligation. f_equal; unfold ι; simpl; pi. Defined.
-  Next Obligation. f_equal; unfold ι; simpl; pi. Defined.
-  Next Obligation. admit. Defined. 
-  Next Obligation. admit. Defined.
-
 End Test.
-
-  Notation " t '=_{' p '}'  u " := (eq_type p t u) (at level 90).
-
-(* Goal True. *)
-(*  nat_force (forall X : Set, X) at p as foo. *)
