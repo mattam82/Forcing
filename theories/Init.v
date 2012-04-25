@@ -150,7 +150,9 @@ Module Forcing(F : Condition).
 
   Local Open Scope forcing_scope.
 
-  Definition subp (p : P) := { q : P | q <= p }.
+  Definition Psub (p : P) := fun q : P => q <= p.
+
+  Definition subp (p : P) := sig (Psub p).
 
   Definition subp_proj {p : P} (q : subp p) : P := ` q.
   Global Coercion subp_proj : subp >-> P.
@@ -163,10 +165,10 @@ Module Forcing(F : Condition).
   
   Lemma subp_proof {p} (q : subp p) : (subp_proj q) <= p.
   Proof. apply (proj2_sig q). Defined.
-  Hint Resolve subp_proof.
+  Hint Resolve subp_proof : forcing.
 
   Program Definition iota_refl p : subp p := p.
-  Next Obligation. reflexivity. Qed.
+  Next Obligation. red; reflexivity. Qed.
 
   (** We define an overloaded [ι] operator to infer canonical 
      coercions of conditions into larger subsets. *)
@@ -177,12 +179,19 @@ Module Forcing(F : Condition).
   
   Global Implicit Arguments iota [[p] [q] [Iota]].
 
+  
+  Hint Extern 0 (_ <= _) => apply reflexivity : forcing. 
+  Hint Extern 0 (_ = _) => try f_equal ; reflexivity : forcing.
+
+  Ltac forcing := 
+    try solve [simpl; unfold Psub in *; auto with arith forcing].
+  Obligation Tactic := program_simpl; forcing.
+
   (** The identity, in case no coercion was needed in fact *)
   Global Program Instance iota_reflexive p (q : subp p) : Iota p q p := { iota := (q : P) }.
   
   (** Self-indexing [q : P p] then [q : P q] *)
   Global Program Instance iota_lift p (q : subp p) : Iota p q q := { iota := (q : P) }.
-  Next Obligation. reflexivity. Defined.
     
   (** [q : P p] so forall [r : P q] [r : P p] as well *)
   Global Program Instance iota_pi {p} (q : subp p) : Iota q (iota q) p := 
@@ -192,7 +201,7 @@ Module Forcing(F : Condition).
   Global Program Instance iota_pi_inv {p} (q : subp p) (r : subp q) : Iota q r p :=
     { iota := (r : P) }.
 
-  Next Obligation. now transitivity q. Defined.
+  Next Obligation. red; transitivity q; auto with forcing. Defined.
 
   (** Iotas compose *)
   Program Definition iota_compose {p sp q r} (pq : Iota p sp q) (qr : Iota q (iota sp) r) : Iota p sp r :=
@@ -225,9 +234,6 @@ Module Forcing(F : Condition).
       |- Iota ?p ?sp ?q => apply_iota_compose p sp q
     end.
   
-  Hint Extern 0 (_ <= _) => apply reflexivity : forcing. 
-  Hint Extern 0 (_ = _) => try f_equal ; reflexivity : forcing.
-  
   Goal forall p sp q r (iop : Iota p sp q), Iota q (iota sp) r -> Iota p sp r.
   Proof. intros. typeclasses eauto. Qed.
 
@@ -256,13 +262,10 @@ Module Forcing(F : Condition).
 
   Example four_trans p (q : subp p) (r : subp q) (s : subp r) (t : subp s) (u : subp t) (v : subp u) 
   : subp q.
-  Proof. exact (iota v). Show Proof. Defined.
+  Proof. exact (iota v). Defined.
 
-  Ltac prog_forcing := auto with forcing.
-  Obligation Tactic := program_simpl ; prog_forcing.
-
-    Section Translation.
-
+  Section Translation.
+    
     Definition transport {p} (f : subp p → Type) :=
       forall q : subp p, forall r : subp q, arrow (f q) (f (iota r)).
 
@@ -271,11 +274,11 @@ Module Forcing(F : Condition).
 
       Notation " 'rewrite' p 'in' x " := (eq_rect _ _ x _ p) (at level 10).
 
-      Definition refl (Θ : transport f) :=
+      Definition refl (Θ : transport f) := Eval simpl in
         forall q : subp p, forall x : f q, 
           Θ q (iota q) x = x.
       
-      Definition trans (Θ : transport f) := 
+      Definition trans (Θ : transport f) := Eval simpl in
         forall q : subp p, forall r : subp q, forall s : subp r,
           forall x, ((Θ (iota r) s) ∘ (Θ q r)) x = Θ q (iota s) x.
 
@@ -320,7 +323,7 @@ Module Forcing(F : Condition).
       intros. unfold compose. destruct f; simpl in *.
       destruct s0 as [θ [Hr Ht]]. 
       red in Ht. pose (Ht (iota q0) r0 s x). unfold compose in *. simpl in *.
-      unfold Θ. simpl. rewrite <- e. destruct r0; reflexivity.
+      unfold Θ. simpl in *. rewrite <- e. destruct r0; reflexivity.
     Qed.
 
   End Translation.

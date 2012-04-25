@@ -4,11 +4,10 @@ Require Import RelationClasses.
 Notation " '{Σ' x , y } " := (exist x y).
 Notation " '(Σ' x , y ) " := (existT x y).
 
-Section Test.
+Import NatForcing.
+Import NatCondition.
+Open Scope forcing_scope.
 
-  Import NatForcing.
-  Import NatCondition.
-   Open Scope forcing_scope.
 Hint Extern 4 => progress (unfold le in *) : forcing.
 
 Lemma subp_proof2 p (q : subp p) : ` q <= p. apply subp_proof. Defined.
@@ -16,10 +15,14 @@ Hint Resolve subp_proof2 : forcing.
 
 Ltac forcing_le :=
   match goal with
-    |- ` ?x <= ?y => 
+    | |- le (@proj1_sig _ _ ?y) ?x => 
+        apply (proj2_sig y)
+    | |- ` ?x <= ?y => 
       match type of x with
         subp ?r => transitivity r
       end
+    | |- le (@subp_proj ?x ?y) ?x => 
+        apply (proj2_sig y)
     | |- subp_proj ?x <= ?y => 
       match type of x with
         subp ?r => transitivity r
@@ -28,7 +31,7 @@ Ltac forcing_le :=
 
 Hint Extern 2 (_ <= _) => forcing_le : forcing.
 
-  Obligation Tactic := program_simpl; auto with forcing.
+Obligation Tactic := program_simpl; forcing.
 
 Program Definition later_sheaf_f {p : nat} (q : subp p) (T : sheaf q) : subp q -> Type :=
   fun r =>
@@ -36,10 +39,10 @@ Program Definition later_sheaf_f {p : nat} (q : subp p) (T : sheaf q) : subp q -
       | 0 => unit
       | S r' => sheaf_f T r'
     end.
-Next Obligation of later_sheaf_f. unfold le. destruct r. simpl in *. subst x; auto with arith. Qed.
+Next Obligation of later_sheaf_f. unfold le. destruct r. simpl in *. subst x; forcing. Qed.
 
 Program Definition subppred {q} (r : subp q) : subp q := pred r.
-Next Obligation. intros. destruct r. simpl in *. unfold le in *. destruct x; eauto with arith. Defined.
+Next Obligation. intros. destruct r. simpl in *. unfold le in *. destruct x; forcing. Defined.
 
 Program Definition later_transp {p} (q : subp p) (T : sheaf q) : transport (later_sheaf_f q T) :=
   λ (r : subp q) (t : subp r) (M : later_sheaf_f q T r),
@@ -49,7 +52,7 @@ Program Definition later_transp {p} (q : subp p) (T : sheaf q) : transport (late
       | S t' => fun prf => Θ T (subppred r) t' _
     end tprf.
   
-Next Obligation. intros. destruct r, t. destruct x; simpl in *; unfold le in *; eauto with arith. Defined.
+Next Obligation. intros. destruct r, t. destruct x; simpl in *; forcing. Defined.
 
 Next Obligation.
   destruct r as [[|r'] Hr]; simpl in *; unfold le in *. 
@@ -150,13 +153,13 @@ Implicit Arguments forcing_traduction [[A] [ForcingOp]].
 
 Notation " '{Σ' x } " := (exist x _).
 
-Obligation Tactic := auto with forcing arith.
+Obligation Tactic := program_simpl; forcing.
 
 Time Forcing Operator next : (forall T : Set, T -> later T).
 
 Next Obligation.
-  intros. red. simpl. intros r1.
-  apply (proj2_sig f1 (one_trans _ _ _ r1)).
+  intros. red; simpl; intros. 
+  apply (H (one_trans _ _ _ r1)).
 Qed.
 
 Notation ι r := (iota r).
@@ -251,39 +254,32 @@ Qed.
 
 Forcing Operator fixp : (forall T : Type, (later T -> T) -> T).
 
+(** Should be automatable: simple reindexings of commutation
+  properties. *)
+
 Next Obligation.
-  intros.
-  Example zero_trans p (q : subp p) (r : subp q) : subp p.
-  Proof. exact (iota r). Defined.
-
-  change (   fixp_transprop p q r arg q2 r1 (zero_trans _ _ r3) (λ s2 : subp (zero_trans _ _ r3), (` f2) (zero_trans _ r3 s2 : subp q4))).
-  red.
-  destruct f2 as [f2 Hf2].
-
-  simpl in *. red in Hf2; simpl in Hf2.
-  intros; apply (Hf2 (iota r2) s2 arg2).
+Proof.
+  red in H; simpl in H.
+  red; simpl; intros; apply (H (iota r2) s2 arg2).
 Qed.
 
 Next Obligation.
-  intros.
-  simpl.
   red. simpl.
   intros.
-  simpl in *.
-  unfold fixp_transprop1 in f1. simpl in f1.
-  apply (proj2_sig f1 (iota r1) s1).
+  unfold fixp_transprop1 in H. 
+  apply (H (iota r1) s1).
 Qed.
 
 Definition Pred (p : nat) := { x : nat | x < p }.
 
 Program Definition Pred_to_sub (p : nat) (q : Pred p) : subp p := q.
 Next Obligation of Pred_to_sub.  
-  destruct q. simpl. red; auto with arith.
+  destruct q; forcing. 
 Defined.
 
 Program Definition succ_of_Pred (p : nat) (q : Pred p) : subp p := S q.
 Next Obligation of succ_of_Pred.  
-  destruct q. simpl. auto with arith.
+  destruct q; forcing. 
 Defined.
 
 Program Definition subp0 (p : nat) : subp p := 0.
@@ -374,9 +370,8 @@ Program Definition secondfn :=
 Program Definition lift_subp {p} (q : subp p) : subp (S p) := q.
 Program Definition lift_Pred {p} (q : Pred p) : Pred (S p) := q.
 Next Obligation of lift_Pred.
-  intros p [q Hq].  
-  simpl; unfold le in *; auto with arith.
- Qed.
+  destruct q as [q Hq]. forcing.
+Qed.
  
 Lemma lift_subp_rect_aux {q : nat} (P : subp (S q) -> Type) 
                          (p0 : P (subp0 (S q))) 
@@ -387,6 +382,7 @@ Lemma lift_subp_rect_aux {q : nat} (P : subp (S q) -> Type)
 Proof. induction r; simpl; auto.
   apply f_equal. apply IHr.
 Qed.
+
 Program Definition subp_le {p} (q : subp p) r (prf : p <= r) : subp r := q.
 
 Ltac forward H :=
@@ -396,7 +392,6 @@ Ltac forward H :=
   end.
 
 Next Obligation of secondfn.
-  simpl; intros.
   intros [r1 Hr1]. 
   induction r1; simpl; intros.
   unfold innerfn; simpl.
@@ -404,14 +399,14 @@ Next Obligation of secondfn.
   red in arg1.
 
   (* 0 *)
-  destruct s1 as [[|s1] Hs1].
-  simpl. 
-  pose (proj2_sig arg1 (subp0 0) (subp0 _)). apply e.
+  destruct s1 as [[|s1] Hs1]; simpl.
+  apply (proj2_sig arg1 (subp0 0) (subp0 _)). 
+
   inversion Hs1.
 
   (* S n *)
   Transparent later_transp.
-  forward IHr1; auto with arith forcing.
+  forward IHr1; forcing.
   pose (proj2_sig arg1 (embed (S r1)) s1).
   simpl in e.
   unfold innerfn.
@@ -422,8 +417,8 @@ Next Obligation of secondfn.
   simpl in *.
 
   simpl.
-  assert(s1 <= r1) by auto with forcing arith.
-  assert(r1 <= r1) by reflexivity.
+  assert(s1 <= r1) by forcing.
+  assert(r1 <= r1) by forcing.
   rewrite lift_subp_rect_aux with (prf':=H1).
   rewrite lift_subp_rect_aux with (prf':=reflexivity s1 : s1 <= s1).
   specialize (IHr1 {Σ s1, H0}).
@@ -440,5 +435,3 @@ Next Obligation.
   exists (secondfn p).
   red; intros. reflexivity.
 Qed.
-
-End Test.
