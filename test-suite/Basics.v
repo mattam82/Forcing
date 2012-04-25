@@ -215,31 +215,24 @@ Proof. Transparent later_transp.
   rewrite H4.
   reflexivity.
 Qed.
-Unset Printing All.
 
-(* Needs eta *)
-
-Check (fun p (r : subp p) (q : subp r) => 
-         eq_refl : (q : P) = (iota q : subp p)).
-
-Next Obligation of next_inst. 
-Proof.
-  red.
-  simpl. intros.
-  Program Definition foo p : { x | next_transprop1 p (iota_refl p) x } :=
+Transparent later_transp. 
+Program Definition nextdef p : { x | next_transprop1 p (iota_refl p) x } :=
             @innernext p.
-  Next Obligation of foo.
-    Proof. Transparent later_transp. 
-      intros.
-      pose proof (proj2_sig (innernext x x0)).
-      red; intros.
-      specialize (H r1 s1 arg1). 
-      simpl in H. simpl. now destruct s1.
-    Qed.
-  Next Obligation of foo.
-    Proof. Transparent later_transp. 
-      intros.
-      red; intros.
+
+Next Obligation of nextdef.
+Proof. 
+  intros.
+  pose proof (proj2_sig (innernext x x0)).
+  red; intros.
+  specialize (H r1 s1 arg1). 
+  simpl in H. simpl. now destruct s1.
+Qed.
+
+Next Obligation of nextdef.
+Proof.
+  intros.
+  red; intros.
   apply sigma_eq.
   apply functional_extensionality_dep.
   simpl; intros.
@@ -247,10 +240,10 @@ Proof.
   reflexivity.
   simpl.
   reflexivity.
-  Qed.
-
-  exact (foo p).
 Qed.
+
+Next Obligation of next_inst. 
+Proof nextdef. 
 
 Forcing Operator fixp : (forall T : Type, (later T -> T) -> T).
 
