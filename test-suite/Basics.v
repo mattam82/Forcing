@@ -107,13 +107,13 @@ Proof. red; intros.
   simpl in *.
   unfold compose in tr. unfold subppred.
   simpl. 
-  assert(x <=  ` q) by (unfold le in *; auto with arith; admit).
+  unfold Θ. simpl.
+  assert(x <=  ` q) by forcing.
   pose (x':={Σ x, H0}:subp q).
   pose proof (tr x').
-  unfold Θ. simpl.
-  assert(r' <= x) by (unfold le in *; auto with arith; admit).
+  assert(r' <= x) by forcing.
   pose (rs':={Σ r', H2}:subp x').
-  specialize (H1 rs'). assert (s' <= r') by admit.
+  specialize (H1 rs'). assert (s' <= r') by forcing.
   specialize (H1 ({Σ s', H3})).
   unfold later_sheaf_f in x0.
   simpl in x0. specialize (H1 x0).
@@ -128,7 +128,7 @@ Program Definition later_trans_impl : later_trans :=
 
 Next Obligation of later_trans_impl.
   red. intros. simpl.
-  unfold sheafC. simpl. 
+  unfold sheafC.
   destruct arg as [sh [transp [rt tt]]].
   simpl. unfold later_trans_sheaf. apply f_equal. apply sigma_eq.
   unfold Θ. simpl.
@@ -136,9 +136,8 @@ Next Obligation of later_trans_impl.
   extensionality t.
   extensionality x.
   destruct t. 
-  simpl.
   destruct x0. reflexivity.
-  apply f_equal.
+  simpl. apply f_equal.
   destruct s0.
   simpl. destruct x1; reflexivity. 
 Qed.
