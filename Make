@@ -1,15 +1,10 @@
--I src -R theories Forcing
--custom "$(CAMLOPTLINK) $(ZDEBUG) $(ZFLAGS) -shared -o $@ $^" "src/forcing_common.cmx src/forcing.cmx src/forcing_plugin_mod.cmx" src/forcing_plugin.cmxs
--custom "$(CAMLLINK) -g -a -o $@ $^" "src/forcing_common.cmo src/forcing.cmo src/forcing_plugin_mod.cmo" src/forcing_plugin.cma
--custom "$(COQBIN)coqc $(COQDEBUG) $(COQFLAGS) $(OTHERFLAGS) $*" "%.v $(UNICOQPLUGINOPT) $(UNICOQPLUGIN)" "%.vo %.glob"
+-I src 
+-R theories Forcing
 -custom "coqmktop -o $@ $^" "src/forcing_plugin.cma" coqtop
-UNICOQPLUGIN = "src/forcing_plugin.cma"
-UNICOQPLUGINOPT = "src/forcing_plugin.cmxs"
-COQDOC = "$(COQBIN)coqdoc -interpolate -utf8"
-CAMLP4OPTIONS = "-loc loc"
 src/forcing_common.ml4
 src/forcing.ml4
 src/forcing_plugin_mod.ml
+src/forcing_plugin.mllib
 theories/Init.v
 theories/Forcing.v
 #test-suite/Basics.v
