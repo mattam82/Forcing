@@ -247,6 +247,7 @@ module Forcing(F : ForcingCond) = struct
       Tacred.simpl env evd c
 
   let iota p = mk_appc coq_iota [mk_hole; p; mk_hole; mk_hole]
+  let iota_to p q = mk_appc coq_iota [mk_hole; p; q; mk_hole]
   let iota_refl p = mk_appc coq_iota_refl [p]
 
   let interp tr p = 
@@ -265,7 +266,7 @@ module Forcing(F : ForcingCond) = struct
 	return (simplc args.(3))
       | _ ->
 	mk_appc (Lazy.force coq_pi2) [mk_ty_hole; mk_ty_hole; simpl (return tr)]
-    in simpl (mk_app (term tr) [iota p; iota q])
+    in simpl (mk_app (term tr) [p; q])
 
   let mk_cond_abs abs na t b = fun sigma ->
     let t' = t sigma in
@@ -314,13 +315,13 @@ module Forcing(F : ForcingCond) = struct
   let comm_pi m na rn t' sn u' p =
     mk_cond_prod rn (subpt p)
     (mk_cond_prod sn (subpt (mk_var rn))
-     (mk_var_prod na t' (iota (mk_var rn) [])
+     (mk_var_prod na t' (iota_refl (mk_var rn) [])
       (mk_appc (Lazy.force coq_eq)
        [ mk_ty_hole; (* mk_ty_hole; mk_hole; *)
-	 simpl (mk_app (restriction u' (mk_var rn) (mk_var sn)) 
+	 simpl (mk_app (restriction u' (mk_var rn) (mk_var sn))
 		[mk_app m [mk_var rn; mk_var na]]);
-	 mk_app m [iota (mk_var sn); 
-		   simpl (mk_app (restriction t' (mk_var rn) (mk_var sn)) [mk_var na])];
+	 mk_app m [mk_var sn;
+		   simpl (mk_app (restriction t' (iota_refl (mk_var rn)) (mk_var sn)) [mk_var na])];
        ]
       )
      )
