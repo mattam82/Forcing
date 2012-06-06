@@ -328,6 +328,33 @@ Module Forcing(F : Condition).
 
   End Translation.
 
+  Section TranslationProp.
+    
+    Definition prop_transport {p} (f : subp p → Prop) :=
+      forall q : subp p, forall r : subp q, f q -> f (iota r).
+
+    Definition prop_sheaf (p : P) :=
+      { sheaf_f : subp p -> Prop | prop_transport sheaf_f }.
+
+    Definition prop_sheaf_f {p : P} (s : prop_sheaf p) : subp p -> Prop :=
+      proj1_sig s.
+
+    Program Definition prop_Θ {p : P} (s : prop_sheaf p) : prop_transport (prop_sheaf_f s) :=
+      proj2_sig s.
+
+    Program Definition prop_sheafC (p : P) (q : subp p) (r : subp q) 
+      (f : prop_sheaf q) : prop_sheaf r :=
+        exist (fun s => prop_sheaf_f f (iota s)) _.
+
+
+    Next Obligation. red. intros. 
+      destruct f.
+      simpl in *.
+      specialize (p0 _ (iota r0) H). apply p0.
+    Qed.
+
+  End TranslationProp.
+
 End Forcing.
 
 Module NatForcing := Forcing(NatCondition).
