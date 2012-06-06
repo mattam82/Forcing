@@ -64,7 +64,6 @@ Notation ι r := (iota r).
 (* Defined. *)
 (* Opaque natf_transp. *)
 
-
 Forcing Operator natf : Set.
 
 Inductive natf_sheaf {p} : subp p -> Type :=
@@ -101,6 +100,7 @@ Forcing Operator Zerof : natf.
 Next Obligation.
 intro p. exact (zerof (embed p)).
 Defined.
+
 Unset Printing Notations.
 Unset Implicit Arguments. 
 Definition Succf_transty := (fun (p : nat) (q : subp p) (r : subp q) =>
@@ -199,7 +199,7 @@ Eval compute in rhs_ty.
 
 Check (eq_refl : lhs_ty = rhs_ty).
 
-Forcing Operator Succf : (natf -> natf).
+(* Forcing Operator Succf' : (natf -> natf). *)
 
 Program Definition unitf_transp p : transport (fun (q:subp p) => unit).
 red; intros; intro; exact tt.
@@ -211,4 +211,3 @@ intro p; exists (fun (q:subp p) => unit).
 exists (unitf_transp p).
 split; red; intros; destruct x; reflexivity.
 Defined.
-Set Printing All.
