@@ -56,21 +56,17 @@ Program Definition eqf_sheaf {p} := fun (q:subp p) (A:sheaf q) (r : subp q) (x :
   (s : subp r) (y : sheaf_f A (ι s)) (t : subp s) => forall (u: subp t), eq (Θ A r u x) (Θ A s u y).
 
 Program Definition eqf_transp {p} (q:subp p) (A:sheaf q) (r : subp q) (x : sheaf_f A r)
-  (s : subp r) (y : sheaf_f A (ι s)) : transport (eqf_sheaf q A r x s y) := λ q0 r0 H u, H u.
+  (s : subp r) (y : sheaf_f A (ι s)) : prop_transport (eqf_sheaf q A r x s y) := λ q0 r0 H u, H u.
 
 Definition eqf_sheaf_f_1 {p} (q:subp p) (A : sheaf q) (r : subp q) (x : sheaf_f A r) :
   eqf_transty6 p {Σ p, le_refl p} q A (ι q) r (ι r).
 red; intros s y.
 exists (eqf_sheaf q A r x s y).
-exists (eqf_transp q A r x s y).
-split; red; reflexivity.
+exact (eqf_transp q A r x s y).
 Defined.
 
-Lemma equal_exist2 {A} {P : A -> Prop} {p q: A} {x : P p} (H: p = q) : exist p x = exist q (eq_rect p _ x q H).
-Proof.
-destruct H.
-replace (eq_rect p P x p eq_refl) with x; reflexivity.
-Defined.
+Lemma equal_exist2 {A} {P : A -> Prop} {p q: A} {x : P p} (H: p = q) : @exist A P p x = @exist A P q (eq_ind p _ x q H).
+Proof. destruct H. reflexivity. Defined.
 
 Lemma equal_existT2 {A} {P : A -> Type} {p q: A} {x : P p} (H: p = q) : existT p x = existT q (eq_rect p _ x q H).
 Proof.
@@ -87,65 +83,69 @@ Require Import ClassicalFacts.
 
 Axiom prop_ext : prop_extensionality.
 
+Lemma exist_eq {A : Type} {P : A -> Prop} (x y : A) (p : P x) (q : P y) : x = y -> exist x p = exist y q.
+Proof. intros; subst; reflexivity. Qed.
+
 Program Definition eqf_sheaf_f_2 {p} (q:subp p) (A : sheaf q): eqf_transty7 p {Σ p, le_refl p} q A (ι q).
-red; intros r x; unfold eqf_transprop; simpl.
+red; intros r x. unfold eqf_transprop; simpl.
 exists (eqf_sheaf_f_1 q A r x); intros s t y.
+apply exist_eq.
 destruct A as (A_f,AΘ); simpl.
 destruct AΘ as (AΘ,(Arefl,Atrans)); simpl.
 unfold eqf_sheaf_f_1, eqf_transp, eqf_sheaf.
-unfold sheafC; simpl.
+unfold prop_sheafC; simpl.
 unfold Θ; simpl.
-
-assert (foo : (λ s0 : subp t, ∀ u : subp s0, AΘ r (ι u) x = AΘ {Σ ` s} {Σ ` u} y) =
-(λ t0 : subp t, ∀ u : subp t0, AΘ r (ι u) x = AΘ (ι t) {Σ ` u} (AΘ (ι s) (ι t) y))).
-unfold trans in Atrans.
-
-apply functional_extensionality; intro u.
+simpl in *.
+extensionality s0.
 apply prop_ext; split; intros H v; rewrite H.
-destruct r as [r Hr].
-destruct s as [s Hs].
-destruct t as [t Ht].
-destruct u as [u Hu].
-assert (Hsq : s <= `q).
-eapply le_trans; eassumption.
-destruct v as [v Hv]; simpl.
-assert (Hvt : v <= t).
-eapply le_trans; eassumption.
-setoid_rewrite (Atrans {Σ s,Hsq} {Σ t,Ht} {Σ v,Hvt}).
-reflexivity.
+red in Arefl, Atrans. unfold compose in Atrans. 
+pose (Atrans (iota s)).
+specialize (e (iota t) (iota v) y).
+symmetry in e. apply e.
+red in Atrans.
+pose (Atrans (iota s) (iota t) (iota v) y). apply e.
+Defined.
 
-destruct r as [r Hr].
-destruct s as [s Hs].
-destruct t as [t Ht].
-destruct u as [u Hu].
-assert (Hsq : s <= `q).
-eapply le_trans; eassumption.
-destruct v as [v Hv]; simpl.
-assert (Hvt : v <= t).
-eapply le_trans; eassumption.
-setoid_rewrite (Atrans {Σ s,Hsq} {Σ t,Ht} {Σ v,Hvt}).
-reflexivity.
+Program Definition eqf_sheaf_f_3 {p} : eqf_transty8 p {Σ p, le_refl p}.
+Proof.
+  red; intros.
+  exists (eqf_sheaf_f_2 (p:=p) r arg).
+  red. simpl; intros. unfold eqf_sheaf_f_2.
+  simpl.
+  apply exist_eq.
+  extensionality s2.
+  unfold eqf_sheaf_f_1.
+  extensionality y.
+  apply exist_eq.
+  unfold eqf_sheaf.
+  extensionality t.
+  apply prop_ext.
+  split; intros.
+  pose proof (sheaf_trans arg).
+  red in H0.
+  unfold compose in H0.
+  rewrite H0.
+  apply H.
 
-assert (foo2 := {Σ
-   λ (q0 : subp t) (r0 : subp q0)
-   (H : ∀ u : subp q0, AΘ r (ι u) x = AΘ (ι t) {Σ ` u} (AΘ (ι s) (ι t) y))
-   (u : subp r0), H {Σ ` u}} =
-eq_rect (λ s0 : subp t, ∀ u : subp s0, AΘ r (ι u) x = AΘ {Σ ` s} {Σ ` u} y) _  {Σ
-   λ (s0 : subp t) (t0 : subp s0)
-   (x0 : ∀ u : subp s0, AΘ r (ι u) x = AΘ {Σ ` s} {Σ ` u} y)
-   (u : subp t0), x0 {Σ ` u}}
-   (λ t0 : subp t, ∀ u : subp t0, AΘ r (ι u) x = AΘ (ι t) {Σ ` u} (AΘ (ι s) (ι t) y))
-   foo).
+  pose proof (sheaf_trans arg).
+  red in H0.
+  unfold compose in H0.
+  rewrite <- H. symmetry in H0.
+  specialize (H0 r1 (iota s1)).
+  simpl in H0.
+  rewrite <- H0.
+  reflexivity.
+Defined.
 
-eapply eq_trans.
-apply equal_existT2 with (H:=foo).
-setoid_rewrite (Atrans {Σ s} {Σ t} {Σ u}).
+Next Obligation.
+  red. intros.
+  refine (exist eqf_sheaf_f_3 _).
+  red; intros.
+  on_call @eqf_sheaf_f_3 ltac:(fun c => pose proof (proj2_sig c)).
+  symmetry. on_call @eqf_sheaf_f_3 ltac:(fun c => pose proof (proj2_sig c)).
+  simpl. simpl in H. red in H.
+  apply exist_eq. 
+  admit. (* There must be a fast way to prove this *)
+Qed.
 
-unfold eqf_sheaf_f_1.
-unfold sheafC; simpl.
-unfold Θ; simpl.
-destruct A as (A_f,AΘ); simpl.
-Print eqf_sheaf.
-destruct AΘ as (AΘ,(AProp,AProp2)); simpl.
-
-
+Forcing Operator foobar : (eqf nat 0 1).

@@ -154,7 +154,13 @@ module Forcing(F : ForcingCond) = struct
       
   let coq_sheafC = forcing_const "sheafC"
 
+  let coq_prop_sheaf = forcing_const "prop_sheaf"
+      
+  let coq_prop_sheafC = forcing_const "prop_sheafC"
+
   let coq_transport = forcing_const "transport"
+
+  let coq_prop_transport = forcing_const "prop_transport"
 
   let coq_iota = forcing_const "iota"
 
@@ -176,6 +182,12 @@ module Forcing(F : ForcingCond) = struct
       
   let sheafC p =
     mkApp (coq_sheafC, [| p |])
+
+  let prop_sheaf p =
+    mkApp (coq_prop_sheaf, [| p |])
+      
+  let prop_sheafC p =
+    mkApp (coq_prop_sheafC, [| p |])
       
   let subp p = 
     mkApp (coq_subp, [| p |])
@@ -247,6 +259,7 @@ module Forcing(F : ForcingCond) = struct
       Tacred.simpl env evd c
 
   let iota p = mk_appc coq_iota [mk_hole; p; mk_hole; mk_hole]
+  let iota_to p q = mk_appc coq_iota [mk_hole; p; q; mk_hole]
   let iota_refl p = mk_appc coq_iota_refl [p]
 
   let interp tr p = 
@@ -265,7 +278,7 @@ module Forcing(F : ForcingCond) = struct
 	return (simplc args.(3))
       | _ ->
 	mk_appc (Lazy.force coq_pi2) [mk_ty_hole; mk_ty_hole; simpl (return tr)]
-    in simpl (mk_app (term tr) [iota p; iota q])
+    in simpl (mk_app (term tr) [p; q])
 
   let mk_cond_abs abs na t b = fun sigma ->
     let t' = t sigma in
@@ -314,13 +327,13 @@ module Forcing(F : ForcingCond) = struct
   let comm_pi m na rn t' sn u' p =
     mk_cond_prod rn (subpt p)
     (mk_cond_prod sn (subpt (mk_var rn))
-     (mk_var_prod na t' (iota (mk_var rn) [])
+     (mk_var_prod na t' (iota_refl (mk_var rn) [])
       (mk_appc (Lazy.force coq_eq)
        [ mk_ty_hole; (* mk_ty_hole; mk_hole; *)
-	 simpl (mk_app (restriction u' (mk_var rn) (mk_var sn)) 
+	 simpl (mk_app (restriction u' (mk_var rn) (mk_var sn))
 		[mk_app m [mk_var rn; mk_var na]]);
-	 mk_app m [iota (mk_var sn); 
-		   simpl (mk_app (restriction t' (mk_var rn) (mk_var sn)) [mk_var na])];
+	 mk_app m [mk_var sn;
+		   simpl (mk_app (restriction t' (iota_refl (mk_var rn)) (mk_var sn)) [mk_var na])];
        ]
       )
      )
@@ -336,6 +349,11 @@ module Forcing(F : ForcingCond) = struct
     mk_appc (Lazy.force coq_dep_pair) 
     [return (mkProd (Anonymous, mkApp (coq_subp, [| p |]), new_Type ()));
      mk_appc coq_transport [return p]; a; b]
+
+  let mk_prop_sheaf_pair p a b : constr forcing_term =
+    mk_appc (Lazy.force coq_exist) 
+    [return (mkProd (Anonymous, mkApp (coq_subp, [| p |]), mkProp));
+     mk_appc coq_prop_transport [return p]; a; b]
 
   let rec find_rel sigma n =
     match sigma, n with
@@ -395,12 +413,17 @@ module Forcing(F : ForcingCond) = struct
     in
       match kind_of_term c with
       | Sort s -> 
+	let sh, shC, shp = 
+	  if s = Prop Null then 
+	    coq_prop_sheaf, coq_prop_sheafC, mk_sheaf_pair
+	  else coq_sheaf, coq_sheafC, mk_sheaf_pair
+	in
 	let q = next_q () in 
 	let fst = mk_cond_lam q (subpt pc) 
-	  (mk_appc coq_sheaf [var q])
+	  (mk_appc sh [var q])
 	in
-	let snd = mk_appc coq_sheafC [pc] in
-	  (mk_sheaf_pair p fst snd)
+	let snd = mk_appc shC [pc] in
+	  (shp p fst snd)
 
       | Prod (na, t, u) -> 
 	let na = next_anon () in
