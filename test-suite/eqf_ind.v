@@ -52,20 +52,20 @@ red; simpl; intros.
 apply (H (ι r1) s1 arg1).
 Qed.
 
-Program Inductive eqf_sheaf_ind (p:nat) {A:sheaf p} (x : sheaf_f A p) : (sheaf_f A (embed p)) -> Prop :=
-| eqf_refl : eqf_sheaf_ind p x x.
+Program Inductive eqf_sheaf_ind {p:nat} (A:sheaf p) (x : sheaf_f A p) : (sheaf_f A (embed p)) -> Prop :=
+| eqf_refl : eqf_sheaf_ind A x x.
 
-Program Definition eqf_sheaf {p} := fun (q:subp p) (A:sheaf q) (r : subp q) (x : sheaf_f A r)
+Program Definition eqf_sheaf {p} := fun (q:subp p) {A:sheaf q} (r : subp q) (x : sheaf_f A r)
   (s : subp r) (y : sheaf_f A (ι s)) (t : subp s) => forall (u: subp t), 
-    (eqf_sheaf_ind (A:=sheafC p q (ι u) A) (`u) (Θ A r (ι u) x) (Θ A (ι s) (ι u) y)).
+    (eqf_sheaf_ind (sheafC p q (ι u) A) (Θ A r (ι u) x) (Θ A (ι s) (ι u) y)).
 
 Program Definition eqf_transp {p} (q:subp p) (A:sheaf q) (r : subp q) (x : sheaf_f A r)
-  (s : subp r) (y : sheaf_f A (ι s)) : prop_transport (eqf_sheaf q A r x s y) := λ q0 r0 H u, H u.
+  (s : subp r) (y : sheaf_f A (ι s)) : prop_transport (eqf_sheaf q r x s y) := λ q0 r0 H u, H u.
 
 Definition eqf_sheaf_f_1 {p} (q:subp p) (A : sheaf q) (r : subp q) (x : sheaf_f A r) :
   eqf_transty6 p {Σ p, le_refl p} q A (ι q) r (ι r).
 red; intros s y.
-exists (eqf_sheaf q A r x s y).
+exists (eqf_sheaf q r x s y).
 exact (eqf_transp q A r x s y).
 Defined.
 
@@ -93,7 +93,6 @@ red in Arefl, Atrans. unfold compose in Atrans.
 pose (Atrans (iota s)).
 specialize (e (iota t) (iota v) y).
 simpl in *.
-Set Printing All.
 setoid_rewrite <- e; apply eqf_refl.
 red in Atrans.
 pose (Atrans (iota s) (iota t) (iota v) y). apply e.
