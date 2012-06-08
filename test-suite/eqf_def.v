@@ -65,19 +65,6 @@ exists (eqf_sheaf q A r x s y).
 exact (eqf_transp q A r x s y).
 Defined.
 
-Lemma equal_exist2 {A} {P : A -> Prop} {p q: A} {x : P p} (H: p = q) : @exist A P p x = @exist A P q (eq_ind p _ x q H).
-Proof. destruct H. reflexivity. Defined.
-
-Lemma equal_existT2 {A} {P : A -> Type} {p q: A} {x : P p} (H: p = q) : existT p x = existT q (eq_rect p _ x q H).
-Proof.
-destruct H; reflexivity.
-Defined.
-
-Lemma equal_existT3 {A} {P : Type} {p q: A} {x : P} (H: p = q) : existT p x = existT q x.
-Proof.
-destruct H; reflexivity.
-Defined.
-
 Require Import FunctionalExtensionality.
 Require Import ClassicalFacts.
 
@@ -110,11 +97,12 @@ Program Definition eqf_sheaf_f_3 {p} : eqf_transty8 p {Σ p, le_refl p}.
 Proof.
   red; intros.
   exists (eqf_sheaf_f_2 (p:=p) r arg).
-  red. simpl; intros. unfold eqf_sheaf_f_2.
-  simpl.
+  red. simpl; intros.
+  (* unfold eqf_sheaf_f_2. *)
+  (* simpl. *)
   apply exist_eq.
   extensionality s2.
-  unfold eqf_sheaf_f_1.
+  (* unfold eqf_sheaf_f_1. *)
   extensionality y.
   apply exist_eq.
   unfold eqf_sheaf.
@@ -124,17 +112,17 @@ Proof.
   pose proof (sheaf_trans arg).
   red in H0.
   unfold compose in H0.
-  rewrite H0.
+  rewrite (H0  (ι r1) s1 {Σ ` u} arg1).
   apply H.
 
   pose proof (sheaf_trans arg).
   red in H0.
-  unfold compose in H0.
-  rewrite <- H. symmetry in H0.
+  unfold compose in H0; simpl.
+  specialize (H u). symmetry in H0.
   specialize (H0 r1 (iota s1)).
   simpl in H0.
-  rewrite <- H0.
-  reflexivity.
+  rewrite <- H0 in H; simpl in H.
+  apply H.
 Defined.
 
 Next Obligation.
@@ -148,4 +136,4 @@ Next Obligation.
   admit. (* There must be a fast way to prove this *)
 Qed.
 
-Forcing Operator foobar : (eqf nat 0 1).
+(* Forcing Operator foobar : (eqf nat 0 1). *)
