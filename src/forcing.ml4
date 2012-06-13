@@ -1,4 +1,4 @@
-(* -*- compile-command: "COQBIN=~/research/coq/git/bin/ make -k -C .. src/forcing_plugin.cma src/forcing_plugin.cmxs" -*- *)
+(* -*- compile-command: "make -k -C .. src/forcing_plugin.cma src/forcing_plugin.cmxs" -*- *)
 (************************************************************************)
 (*  v      *   The Coq Proof Assistant  /  The Coq Development Team     *)
 (* <O___,, * CNRS-Ecole Polytechnique-INRIA Futurs-Universite Paris Sud *)
@@ -154,11 +154,12 @@ module Forcing(F : ForcingCond) = struct
       
   let coq_sheafC = forcing_const "sheafC"
 
-  let coq_prop_sheaf = forcing_const "prop_sheaf"
-      
-  let coq_prop_sheafC = forcing_const "prop_sheafC"
+  let coq_type_sheaf = forcing_const "sheafC_sheaf"
+  let coq_prop_sheaf = forcing_const "prop_sheafC_sheaf"
 
   let coq_transport = forcing_const "transport"
+
+  let coq_trans_prop = forcing_const "trans_prop"
 
   let coq_prop_transport = forcing_const "prop_transport"
 
@@ -183,11 +184,11 @@ module Forcing(F : ForcingCond) = struct
   let sheafC p =
     mkApp (coq_sheafC, [| p |])
 
-  let prop_sheaf p =
-    mkApp (coq_prop_sheaf, [| p |])
+  (* let prop_sheaf p = *)
+  (*   mkApp (coq_prop_sheaf, [| p |]) *)
       
-  let prop_sheafC p =
-    mkApp (coq_prop_sheafC, [| p |])
+  (* let prop_sheafC p = *)
+  (*   mkApp (coq_prop_sheafC, [| p |]) *)
       
   let subp p = 
     mkApp (coq_subp, [| p |])
@@ -346,14 +347,20 @@ module Forcing(F : ForcingCond) = struct
     mk_appc (Lazy.force coq_dep_pair) [mk_ty_hole; mk_ty_hole; a; b]
 
   let mk_sheaf_pair p a b : constr forcing_term =
+    let shty = mkProd (Anonymous, mkApp (coq_subp, [| p |]), new_Type ()) in
+    let trty = mkApp (coq_transport, [| p; mkRel 1 |]) in
     mk_appc (Lazy.force coq_dep_pair) 
-    [return (mkProd (Anonymous, mkApp (coq_subp, [| p |]), new_Type ()));
-     mk_appc coq_transport [return p]; a; b]
+      [return shty;
+       return (mkLambda (Name (id_of_string "sh"), shty,
+			 mkApp (Lazy.force coq_sig,
+				[|trty;
+				  mkApp (coq_trans_prop, [|p; mkRel 1|])|])));
+       a; b]
 
-  let mk_prop_sheaf_pair p a b : constr forcing_term =
-    mk_appc (Lazy.force coq_exist) 
-    [return (mkProd (Anonymous, mkApp (coq_subp, [| p |]), mkProp));
-     mk_appc coq_prop_transport [return p]; a; b]
+  (* let mk_prop_sheaf_pair p a b : constr forcing_term = *)
+  (*   mk_appc (Lazy.force coq_exist)  *)
+  (*   [return (mkProd (Anonymous, mkApp (coq_subp, [| p |]), mkProp)); *)
+  (*    mk_appc coq_prop_transport [return p]; a; b] *)
 
   let rec find_rel sigma n =
     match sigma, n with
@@ -413,17 +420,18 @@ module Forcing(F : ForcingCond) = struct
     in
       match kind_of_term c with
       | Sort s -> 
-	let sh, shC, shp = 
-	  if s = Prop Null then 
-	    coq_prop_sheaf, coq_prop_sheafC, mk_sheaf_pair
-	  else coq_sheaf, coq_sheafC, mk_sheaf_pair
-	in
-	let q = next_q () in 
-	let fst = mk_cond_lam q (subpt pc) 
-	  (mk_appc sh [var q])
-	in
-	let snd = mk_appc shC [pc] in
-	  (shp p fst snd)
+	  if s = Prop Null then mk_appc coq_prop_sheaf [pc]
+	  else mk_appc coq_type_sheaf [pc]
+
+	(*     coq_prop_sheaf, coq_prop_sheafC, mk_prop_sheaf_pair *)
+	(*   else coq_sheaf, coq_sheafC, mk_sheaf_pair *)
+	(* in *)
+	(* let q = next_q () in  *)
+	(* let fst = mk_cond_lam q (subpt pc)  *)
+	(*   (mk_appc sh [var q]) *)
+	(* in *)
+	(* let snd = mk_appc shC [pc] in *)
+	(*   (shp p fst snd) *)
 
       | Prod (na, t, u) -> 
 	let na = next_anon () in
