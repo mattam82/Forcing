@@ -40,6 +40,9 @@ Notation " '{Σ'  x } " := (exist x _).
 Require Import Le.
 Notation ι r := (iota r).
 
+Lemma exist_eq {A : Type} {P : A -> Prop} (x y : A) (p : P x) (q : P y) : x = y -> exist x p = exist y q.
+Proof. intros; subst; reflexivity. Qed.
+
 Forcing Operator eqf : (forall A, A -> A -> Prop).
 
 Next Obligation.
@@ -49,7 +52,21 @@ Qed.
 
 Next Obligation.
 red; simpl; intros.
+split; red; intros.
+reflexivity.
+reflexivity.
+Qed.
+
+Next Obligation.
+red; simpl; intros.
 apply (H (ι r1) s1 arg1).
+Qed.
+
+Next Obligation.
+red; simpl; intros.
+split; red; intros.
+reflexivity.
+reflexivity.
 Qed.
 
 Program Definition eqf_sheaf {p} := fun (q:subp p) (A:sheaf q) (r : subp q) (x : sheaf_f A r)
@@ -79,16 +96,15 @@ destruct H; reflexivity.
 Defined.
 
 Require Import FunctionalExtensionality.
-Require Import ClassicalFacts.
 
+Require Import ClassicalFacts.
 Axiom prop_ext : prop_extensionality.
 
-Lemma exist_eq {A : Type} {P : A -> Prop} (x y : A) (p : P x) (q : P y) : x = y -> exist x p = exist y q.
-Proof. intros; subst; reflexivity. Qed.
+Program Definition eqf_sheaf_f_2 {p} (q:subp p) (A : sheaf q): eqf_transty7 p {Σ p, le_refl p} q A (ι q) := fun r x => eqf_sheaf_f_1 q A r x.
 
-Program Definition eqf_sheaf_f_2 {p} (q:subp p) (A : sheaf q): eqf_transty7 p {Σ p, le_refl p} q A (ι q).
-red; intros r x. unfold eqf_transprop; simpl.
-exists (eqf_sheaf_f_1 q A r x); intros s t y.
+Next Obligation of eqf_sheaf_f_2.
+unfold eqf_transprop; simpl.
+intros s t y.
 apply exist_eq.
 destruct A as (A_f,AΘ); simpl.
 destruct AΘ as (AΘ,(Arefl,Atrans)); simpl.
@@ -104,48 +120,45 @@ specialize (e (iota t) (iota v) y).
 symmetry in e. apply e.
 red in Atrans.
 pose (Atrans (iota s) (iota t) (iota v) y). apply e.
-Defined.
+Qed.
 
-Program Definition eqf_sheaf_f_3 {p} : eqf_transty8 p {Σ p, le_refl p}.
+Program Definition eqf_sheaf_f_3 {p} : eqf_transty8 p {Σ p, le_refl p} :=
+          eqf_sheaf_f_2 (p:=p).
+
+Next Obligation of eqf_sheaf_f_3.
 Proof.
   red; intros.
-  exists (eqf_sheaf_f_2 (p:=p) r arg).
-  red. simpl; intros. unfold eqf_sheaf_f_2.
-  simpl.
-  apply exist_eq.
+  unfold eqf_sheaf_f_2.
+  apply exist_eq. simpl.
   extensionality s2.
+  extensionality y. simpl in *.
   unfold eqf_sheaf_f_1.
-  extensionality y.
   apply exist_eq.
   unfold eqf_sheaf.
   extensionality t.
   apply prop_ext.
   split; intros.
-  pose proof (sheaf_trans arg).
+  pose proof (sheaf_trans x0).
   red in H0.
   unfold compose in H0.
-  rewrite H0.
+  simpl in *.
+  rewrite (H0 (ι r1) s1 {Σ ` u} arg1).
   apply H.
 
-  pose proof (sheaf_trans arg).
+  pose proof (sheaf_trans x0).
   red in H0.
   unfold compose in H0.
   rewrite <- H. symmetry in H0.
   specialize (H0 r1 (iota s1)).
-  simpl in H0.
-  rewrite <- H0.
-  reflexivity.
-Defined.
+  simpl in *.
+  rewrite <- H0 in H; simpl in H.
+  apply H.
+Qed.
 
 Next Obligation.
   red. intros.
   refine (exist eqf_sheaf_f_3 _).
-  red; intros.
-  on_call @eqf_sheaf_f_3 ltac:(fun c => pose proof (proj2_sig c)).
-  symmetry. on_call @eqf_sheaf_f_3 ltac:(fun c => pose proof (proj2_sig c)).
-  simpl. simpl in H. red in H.
-  apply exist_eq. 
-  admit. (* There must be a fast way to prove this *)
+  red. intros. reflexivity.
 Qed.
 
 Forcing Operator foobar : (eqf nat 0 1).

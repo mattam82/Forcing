@@ -272,8 +272,6 @@ Module Forcing(F : Condition).
     Section Sheaf.
       Context {p} {f : subp p -> Type}.
 
-      Notation " 'rewrite' p 'in' x " := (eq_rect _ _ x _ p) (at level 10).
-
       Definition refl (Θ : transport f) := Eval simpl in
         forall q : subp p, forall x : f q, 
           Θ q (iota q) x = x.
@@ -326,6 +324,20 @@ Module Forcing(F : Condition).
       unfold Θ. simpl in *. rewrite <- e. destruct r0; reflexivity.
     Qed.
 
+    Lemma sheafC_trans (p : P) : trans_prop (sheafC p).
+    Proof.
+      red. split; red; intros.
+      (* BUG with reflexivity only: eta for records probably *)
+      destruct x as [sh [tr Htr]]; simpl. unfold sheafC. simpl. 
+      unfold Θ. simpl. reflexivity.
+      destruct x as [sh [tr Htr]]; simpl. unfold compose, sheafC. simpl. apply f_equal.
+      unfold Θ. simpl. reflexivity.
+    Qed.
+
+    Program Definition sheafC_sheaf (p : P) :
+              { sheaf_f : subp p -> Type & sig (@trans_prop p sheaf_f) } :=
+              existT sheaf (exist (sheafC p) (sheafC_trans p)).
+
   End Translation.
 
   Section TranslationProp.
@@ -346,11 +358,20 @@ Module Forcing(F : Condition).
       (f : prop_sheaf q) : prop_sheaf r :=
         exist (fun s => prop_sheaf_f f (iota s)) _.
 
-
     Next Obligation. red. intros. 
       destruct f.
       simpl in *.
       specialize (p0 _ (iota r0) H). apply p0.
+    Qed.
+
+    Program Definition prop_sheafC_sheaf (p : P) :
+              { sheaf_f : subp p -> Type & sig (@trans_prop p sheaf_f) } :=
+              existT prop_sheaf (prop_sheafC p). 
+    Next Obligation.
+      red. split; red; intros.
+      destruct x as [sh tr]; simpl. unfold prop_sheafC. simpl. reflexivity. 
+      destruct x as [sh tr]; simpl. unfold compose, prop_sheafC. simpl. 
+      reflexivity.
     Qed.
 
   End TranslationProp.
