@@ -82,19 +82,6 @@ exists (eqf_sheaf q A r x s y).
 exact (eqf_transp q A r x s y).
 Defined.
 
-Lemma equal_exist2 {A} {P : A -> Prop} {p q: A} {x : P p} (H: p = q) : @exist A P p x = @exist A P q (eq_ind p _ x q H).
-Proof. destruct H. reflexivity. Defined.
-
-Lemma equal_existT2 {A} {P : A -> Type} {p q: A} {x : P p} (H: p = q) : existT p x = existT q (eq_rect p _ x q H).
-Proof.
-destruct H; reflexivity.
-Defined.
-
-Lemma equal_existT3 {A} {P : Type} {p q: A} {x : P} (H: p = q) : existT p x = existT q x.
-Proof.
-destruct H; reflexivity.
-Defined.
-
 Require Import FunctionalExtensionality.
 
 Require Import ClassicalFacts.
@@ -133,6 +120,7 @@ Proof.
   extensionality s2.
   extensionality y. simpl in *.
   unfold eqf_sheaf_f_1.
+
   apply exist_eq.
   unfold eqf_sheaf.
   extensionality t.
@@ -147,8 +135,8 @@ Proof.
 
   pose proof (sheaf_trans x0).
   red in H0.
-  unfold compose in H0.
-  rewrite <- H. symmetry in H0.
+  unfold compose in H0; simpl.
+  specialize (H u). symmetry in H0.
   specialize (H0 r1 (iota s1)).
   simpl in *.
   rewrite <- H0 in H; simpl in H.
@@ -161,4 +149,4 @@ Next Obligation.
   red. intros. reflexivity.
 Qed.
 
-Forcing Operator foobar : (eqf nat 0 1).
+(* Forcing Operator foobar : (eqf nat 0 1). *)
