@@ -9,6 +9,9 @@ Implicit Arguments existT [[A] [P]].
 Definition prodT (A B : Type) := @sigT A (fun _ => B). 
 Definition pairT {A B : Type} : A -> B -> prodT A B := @existT A (fun _ => B). 
 
+Inductive prop_eq (P : Prop) (p : P) : P -> Prop := 
+  prop_eq_refl : prop_eq P p p.
+
 Implicit Arguments pairT [[A] [B]].
 
 Definition conv_annot {T U : Type} (M : U) : U := M.
@@ -126,9 +129,16 @@ Module Type Condition.
 
 End Condition.
 
-Class ForcingOp {A : Type} (a : A) := {
+Inductive prop_or_type := is_prop | is_type.
+
+Class ForcingOp {A : Type} (a : A) (p : prop_or_type) := {
   forcing_traduction_type : Type;
   forcing_traduction : forcing_traduction_type
+}.
+
+Class ForcingLemma {P : Prop} (p : P) := {
+  forcing_traduction_prop : Prop;
+  forcing_traduction_proof : forcing_traduction_prop
 }.
 
 Require Import Le.

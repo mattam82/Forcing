@@ -74,7 +74,7 @@ Next Obligation.
   red. intros.
   exists (λ (q:subp p) (n : natf_sheaf (ι q)) (r:subp q), succf (`r) (n r)).
   red; simpl; intros.
-  extensionality s0. reflexivity.
+  reflexivity.
 Defined.
 
 Forcing Operator Zerof : natf.
@@ -82,32 +82,181 @@ Next Obligation.
   red. intros; exact (λ (q:subp p), zerof (`q)).
 Defined.
 
-Forcing Operator eqf : (forall A, A -> A -> Prop).
+(* Forcing Operator eqf : (forall A, A -> A -> Prop). *)
 
+(* Next Obligation. *)
+(* red; simpl; intros. *)
+(* apply (H (ι r2) s2 arg2). *)
+(* Qed. *)
+
+(* Next Obligation. *)
+(* red; simpl; intros. *)
+(* split; red; intros. *)
+(* reflexivity. *)
+(* reflexivity. *)
+(* Qed. *)
+
+(* Next Obligation. *)
+(* red; simpl; intros. *)
+(* apply (H (ι r1) s1 arg1). *)
+(* Qed. *)
+
+(* Next Obligation. *)
+(*   red. intros. *)
+(*   split; red; intros; reflexivity. *)
+(* Qed. *)
+
+(* Next Obligation.   *)
+(*   red; simpl; intros. *)
+(*   refine (exist eqf_sheaf_f_3 _). *)
+(*   red; intros. *)
+(*   reflexivity. *)
+(* Qed. *)
+
+(* Opaque eqf_sheaf. *)
+(* Opaque eqf_transp. *)
+
+Existing Instance eqf_inst.
+Print Instances ForcingOp.
+
+Forcing 
+Lemma zero_refl : (eqf natf Zerof Zerof).
 Next Obligation.
-red; simpl; intros.
-apply (H (ι r2) s2 arg2).
+  red. intros. red. reflexivity.
 Qed.
 
+
+Forcing 
+Lemma succrefl : (forall x : natf, eqf natf (Succf x) (Succf x)).
 Next Obligation.
-red; simpl; intros.
-apply (H (ι r1) s1 arg1).
+Proof.
+  red. intros. red. simpl; intros.
+  red. simpl.
+  reflexivity. 
 Qed.
 
+Ltac forcing ::= 
+  try solve [simpl; unfold Psub in *; auto 20 with arith forcing].
+
+Forcing 
+Lemma eqsucc : (forall x y : natf, eqf natf x y -> eqf natf (Succf x) (Succf y)).
 Next Obligation.
-  red. intros.
-  refine (exist eqf_sheaf_f_3 _).
-  admit. (* There must be a fast way to prove this *)
+Proof.
+  simpl.
+  unfold Psub.
+  eauto 20 with forcing.
+  red. intros. red. simpl; intros.
+  red. simpl.
+  reflexivity. 
 Qed.
 
-Opaque eqf_sheaf.
-Opaque eqf_transp.
 
-Forcing Operator foo : (eqf natf Zerof Zerof).
 
-Forcing Operator eqf_refl : (forall A, eqf Type A A).
 
-Lemma foo: eqf natf (Succf Zerof) (Succf Zerof).
+
+(* If producing commpi conditions for propositional sheafs, 
+  we get the following:
+*)
+
+Program Definition succrefl_transty :=
+  λ (p : nat) (q : subp p) (r : subp q), natf_inst_obligation_1 r.
+
+Program Definition succrefl_transty1 :=
+  λ (p : nat) (q : subp p) (r : subp q)
+  (arg : projT1 (succrefl_transty p q r) r),
+  eqf_sheaf_f_3 (iota_refl r) (natf_inst_obligation_1 r)
+    (iota_refl r)
+    (λ r0 : subp (iota_refl r),
+     succf (` r0) (projT2 (succrefl_transty p q r0) r0 r0 arg r0))
+    (iota_refl r)
+    (λ r0 : subp (iota_refl r),
+     succf (` r0) (projT2 (succrefl_transty p q r0) r0 r0 arg r0)).
+
+Program Definition succrefl_transty2 :=
+  λ (p : nat) (q : subp p),
+  ∀ (r : subp q) (arg : projT1 (succrefl_transty p q r) r),
+  (` (succrefl_transty1 p q r arg)) r.
+
+
+Eval compute in
+  λ (p : nat) (q : subp p) (f : succrefl_transty2 p q),
+  λ (r : subp q) (s : subp r)
+  (arg : projT1 (succrefl_transty p q r) (iota_refl r)),
+     (f (iota s) (` (projT2 (succrefl_transty p q r)) (iota_refl r) s arg)).
+
+Implicit Arguments eqf_sheaf [].
+
+Eval simpl in ∀ (p : nat) (q : subp p),
+       ∀ (r : subp q) (s : subp r)
+         (arg : projT1 (succrefl_transty p q r) (iota_refl r)),
+         (`
+          (succrefl_transty1 p q (ι s)
+             ((` (projT2 (succrefl_transty p q r))) (iota_refl r) s arg)))
+           {Σ ` (ι s)}.
+(* = ∀ (p : nat) (q : subp p) (r : subp q) (s : subp r)
+       (arg : natf_sheaf (iota_refl r)),
+       eqf_sheaf s (iota_refl s) (natf_inst_obligation_1 s) 
+         (iota_refl s)
+         (λ r0 : subp s,
+          succf (` r0)
+            (natf_transp {Σ ` r0} {Σ ` r0}
+               (λ r1 : subp (` r0), natf_transp (iota_refl r) s arg {Σ ` r1})
+               {Σ ` r0})) (iota_refl s)
+         (λ r0 : subp s,
+          succf (` r0)
+            (natf_transp {Σ ` r0} {Σ ` r0}
+               (λ r1 : subp (` r0), natf_transp (iota_refl r) s arg {Σ ` r1})
+               {Σ ` r0})) {Σ s}
+*)
+Eval compute in
+  λ (p : nat) (q : subp p) (f : succrefl_transty2 p q),
+  λ (r : subp q) (s : subp r)
+  (arg : projT1 (succrefl_transty p q r) (iota_refl r)),
+     (proj2_sig (succrefl_transty1 p q r arg) (iota r) s (f r arg)).
+
+Eval simpl in
+ ∀ (p : nat) (q : subp p),
+       succrefl_transty2 p q
+       → ∀ (r : subp q) (s : subp r)
+         (arg : projT1 (succrefl_transty p q r) (iota_refl r)),
+         (` (succrefl_transty1 p q r arg)) (ι s).
+
+(* 
+     = ∀ (p : nat) (q : subp p),
+       succrefl_transty2 p q
+       → ∀ (r : subp q) (s : subp r) (arg : natf_sheaf (iota_refl r)),
+         eqf_sheaf r (iota_refl r) (natf_inst_obligation_1 (` r))
+           (iota_refl r)
+           (λ r0 : subp r,
+            succf (` r0)
+              (natf_transp {Σ ` r0} {Σ ` r0}
+                 (λ r1 : subp (` r0), arg {Σ ` r1}) 
+                 {Σ ` r0})) (iota_refl r)
+           (λ r0 : subp r,
+            succf (` r0)
+              (natf_transp {Σ ` r0} {Σ ` r0}
+                 (λ r1 : subp (` r0), arg {Σ ` r1}) 
+                 {Σ ` r0})) {Σ s}
+*)
+
+(* We seem to be comparing apples and oranges: 
+  eqf_sheaf s <> eqf_sheaf r ,
+
+however the definition of eqf_sheaf quantifies on a u, moving s and r in the 
+same layer, hence the types are indeed definitionally equal (but it takes a 
+while for Coq to see it).
+
+
+*)
+
+Definition foo :=
+  ∀ (p : nat) (q : subp p)
+    (f : succrefl_transty2 p q)
+    (r : subp q) (s : subp r)
+    (arg : projT1 (succrefl_transty p q r) (iota_refl r)),
+    @eq_prop ((` (succrefl_transty1 p q r arg)) (ι s))
+     (proj2_sig (succrefl_transty1 p q r arg) (iota r) s (f r arg))
+     (f (iota s) (` (projT2 (succrefl_transty p q r)) (iota_refl r) s arg)).
 
 
 
