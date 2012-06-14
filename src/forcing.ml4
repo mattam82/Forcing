@@ -106,11 +106,15 @@ END
 
 let name s = Name (id_of_string s)
 let coq_proj1_sig = lazy (Coqlib.coq_constant "proj1_sig" ["Init";"Specif"] "proj1_sig")
+let coq_proj2_sig = lazy (Coqlib.coq_constant "proj2_sig" ["Init";"Specif"] "proj2_sig")
 let coq_exist = lazy (Coqlib.coq_constant "exist" ["Init";"Specif"] "exist")
 let coq_sig = lazy (Coqlib.coq_constant "sig" ["Init";"Specif"] "sig")
 
 let coq_eq_rect = lazy (Coqlib.coq_constant "eq" ["Init";"Logic"] "eq_rect")
 let coq_identity = lazy (Coqlib.coq_constant "eq" ["Init";"Datatypes"] "identity")
+
+
+let coq_iff = lazy (Coqlib.coq_constant "iff" ["Init";"Logic"] "iff")
 
 let coq_sum = lazy (Coqlib.coq_constant "sum" ["Init";"Specif"] "sigT")
 let coq_dep_pair = lazy (Coqlib.coq_constant "sum" ["Init";"Specif"] "existT")
@@ -123,6 +127,7 @@ let init_constant mods reference = constr_of_global (init_reference mods referen
 let forcing_constant c = lazy (init_constant ["Forcing";"Init"] c)
 let coq_nondep_prod = forcing_constant "prodT"
 let coq_nondep_pair = forcing_constant "pairT"
+let coq_prop_eq = forcing_constant "prop_eq"
 
 let coq_eqtype = forcing_constant "eq_type"
 let coq_eqtype_ref = lazy (init_reference ["Forcing";"Init"] "eq_type")
@@ -130,8 +135,16 @@ let coq_eqtype_ref = lazy (init_reference ["Forcing";"Init"] "eq_type")
 let coq_app = forcing_constant "app_annot"
 let coq_conv = forcing_constant "conv_annot"
 let coq_forcing_op = lazy (init_reference ["Forcing";"Init"] "ForcingOp")
+let coq_forcing_prop_or_type = lazy (init_reference ["Forcing";"Init"] "prop_or_type")
+let coq_forcing_is_prop = lazy (init_reference ["Forcing";"Init"] "is_prop")
+let coq_forcing_is_type = lazy (init_reference ["Forcing";"Init"] "is_type")
+
 let coq_forcing_op_type = forcing_constant "forcing_traduction_type"
 let coq_forcing_op_trad = forcing_constant "forcing_traduction"
+
+let coq_forcing_lemma = lazy (init_reference ["Forcing";"Init"] "ForcingLemma")
+let coq_forcing_lemma_prop = forcing_constant "forcing_traduction_prop"
+let coq_forcing_lemma_proof = forcing_constant "forcing_traduction_proof"
 
 module type ForcingCond = sig
   val cond_mod : string list
@@ -168,6 +181,7 @@ module Forcing(F : ForcingCond) = struct
   let coq_iota_refl = forcing_const "iota_refl"
 
   let forcing_class = Typeclasses.class_info (Lazy.force coq_forcing_op)
+  let forcing_lemma_class = Typeclasses.class_info (Lazy.force coq_forcing_lemma)
 
   let find_forcing_op c =
     let ty = Typing.type_of (Global.env ()) Evd.empty c in
@@ -212,12 +226,14 @@ module Forcing(F : ForcingCond) = struct
     with Failure _ -> raise Not_found
 	
   type condition = constr
+  type sorting = IsProp | InProp | InType
 
   (* Variables environment: the translated variable index, translated type and 
      condition index if not a condition variable *)
-  type env = (name * types * condition option) list
+  type env = (name * (sorting * types) * condition option) list
 
   type 'a forcing_term = env -> 'a
+
 
   let bind (x : 'a forcing_term) (f : 'a -> 'b forcing_term) : 'b forcing_term =
     fun sigma -> let y = x sigma in f y sigma
@@ -238,6 +254,7 @@ module Forcing(F : ForcingCond) = struct
 
   let mk_hole sigma = mkMeta hole
   let mk_ty_hole sigma = mkMeta ty_hole
+  let mk_prop_hole sigma = mkMeta ty_hole
 
   let array_dropn n a =
     Array.sub a n (Array.length a - n)
@@ -263,41 +280,60 @@ module Forcing(F : ForcingCond) = struct
   let iota_to p q = mk_appc coq_iota [mk_hole; p; q; mk_hole]
   let iota_refl p = mk_appc coq_iota_refl [p]
 
-  let interp tr p = 
+  let pi1_of = function IsProp -> Lazy.force coq_proj1_sig | _ -> Lazy.force coq_pi1
+  let pi2_of = function IsProp -> Lazy.force coq_proj2_sig | _ -> Lazy.force coq_pi2
+  let map_trans_res f (s, t) = (s, f t)
+
+  let get_trans t sigma = snd (t sigma)
+
+  let dec_trans s t = fun sigma -> (s, t sigma)
+
+  let interp (s, tr) p = 
     let rec term tr = 
       match kind_of_term (simplc tr) with
-      | App (f, args) when f = Lazy.force coq_dep_pair || f = Lazy.force coq_nondep_pair ->
+      | App (f, args) when f = Lazy.force coq_dep_pair
+	  || f = Lazy.force coq_sig
+	  || f = Lazy.force coq_nondep_pair ->
 	return (simplc args.(2))
       | _ ->
-	mk_appc (Lazy.force coq_pi1) [mk_ty_hole; mk_ty_hole; simpl (return tr)]
-    in simpl (mk_app (term tr) [p])
+	mk_appc (pi1_of s) [mk_ty_hole; mk_ty_hole; simpl (return tr)]
+    in dec_trans s (simpl (mk_app (term tr) [p]))
 
-  let restriction tr p q = 
+  let restriction (s, tr) p q = 
     let rec term tr = 
       match kind_of_term (simplc tr) with
-      | App (f, args) when f = Lazy.force coq_dep_pair || f = Lazy.force coq_nondep_pair ->
+      | App (f, args) when 
+	  f = Lazy.force coq_dep_pair 
+	  || f = Lazy.force coq_sig
+	  || f = Lazy.force coq_nondep_pair ->
 	return (simplc args.(3))
       | _ ->
-	mk_appc (Lazy.force coq_pi2) [mk_ty_hole; mk_ty_hole; simpl (return tr)]
-    in simpl (mk_app (term tr) [p; q])
+	mk_appc (pi2_of s) [mk_ty_hole; mk_ty_hole; simpl (return tr)]
+    in dec_trans s (simpl (mk_app (term tr) [p; q]))
 
   let mk_cond_abs abs na t b = fun sigma ->
     let t' = t sigma in
-    let sigma' = (Name na, t', None) :: sigma in
-      abs (Name na, t', b sigma')
+    let sigma' = (Name na, (InType, t'), None) :: sigma in
+    let s', b' = b sigma' in
+      s', abs (Name na, t', b')
     
-  let mk_var_abs abs na t' cond b sigma =
-    let t' = interp t' (return cond) sigma in
+  let mk_var_abs abs na (s, t') cond b sigma =
+    let t' = interp (s, t') (return cond) sigma in
     let sigma' = (Name na, t', Some cond) :: sigma in
-      abs (Name na, t', b sigma')
+    let s', b' = b sigma' in
+      s', abs (Name na, snd t', b')
 
+  let mk_abs abs na t b sigma = 
+    let s, t' = t sigma in
+    let sigma' = (Name na, (s, t'), None) :: sigma in
+    let s', b' = b sigma' in
+      s', abs (Name na, t', b')
+      
   let mk_cond_prod = mk_cond_abs mkProd
   let mk_var_prod = mk_var_abs mkProd
   let mk_cond_lam = mk_cond_abs mkLambda
   let mk_var_lam = mk_var_abs mkLambda
-
-  let mk_let na c t b = fun sigma ->
-    mkLetIn (Name na, c sigma, t sigma, b sigma)
+  let mk_lam = mk_abs mkLambda
 
   let subpt p = 
     mk_appc coq_subp [p]
@@ -327,19 +363,23 @@ module Forcing(F : ForcingCond) = struct
 
   let comm_pi m na rn t' sn u' p =
     mk_cond_prod rn (subpt p)
-    (mk_cond_prod sn (subpt (mk_var rn))
-     (mk_var_prod na t' (iota_refl (mk_var rn) [])
-      (mk_appc (Lazy.force coq_eq)
-       [ mk_ty_hole; (* mk_ty_hole; mk_hole; *)
-	 simpl (mk_app (restriction u' (mk_var rn) (mk_var sn))
-		[mk_app m [mk_var rn; mk_var na]]);
-	 mk_app m [mk_var sn;
-		   simpl (mk_app (restriction t' (iota_refl (mk_var rn)) (mk_var sn)) [mk_var na])];
-       ]
+      (mk_cond_prod sn (subpt (mk_var rn))
+	 (mk_var_prod na t' (iota_refl (mk_var rn) [])
+	    (fun sigma -> 
+	       let sort, restru' = restriction u' (mk_var rn) (mk_var sn) sigma in
+	       let _, restrt' = restriction t' (iota_refl (mk_var rn)) (mk_var sn) sigma in
+	       let equiv = mk_appc (Lazy.force coq_eq) [mk_ty_hole] in
+		 (IsProp,
+		  (mk_app equiv
+		     [ simpl (mk_app (return restru')
+				[mk_app m [mk_var rn; mk_var na]]);
+		       mk_app m [mk_var sn;
+				 simpl (mk_app (return restrt') [mk_var na])];
+		     ] sigma))
+	    )
+	 )
       )
-     )
-    )
-    
+      
   let mk_pair a b : constr forcing_term =
     mk_appc (Lazy.force coq_nondep_pair) [mk_ty_hole; mk_ty_hole; a; b]
 
@@ -355,7 +395,7 @@ module Forcing(F : ForcingCond) = struct
 			 mkApp (Lazy.force coq_sig,
 				[|trty;
 				  mkApp (coq_trans_prop, [|p; mkRel 1|])|])));
-       a; b]
+       get_trans a; get_trans b]
 
   (* let mk_prop_sheaf_pair p a b : constr forcing_term = *)
   (*   mk_appc (Lazy.force coq_exist)  *)
@@ -370,14 +410,14 @@ module Forcing(F : ForcingCond) = struct
     | [], _ -> assert false
       
 
-  let abstract t sigma =
+  let abstract (s, t) sigma =
     let free = global_vars_set (Global.env ()) t in
     let abs, vars, _ = 
       List.fold_left 
         (fun (c, vars, free) (na, ty, cond) ->
 	 let id = out_name na in
 	   if Idset.mem id free then
-	     let ty' = match cond with
+	     let s, ty' = match cond with
 	       | None -> ty
 	       | Some cond -> interp ty (return cond) sigma
 	     in 
@@ -388,7 +428,7 @@ module Forcing(F : ForcingCond) = struct
 	       mkLambda (na, ty', c), (id :: vars), ids'
 	   else c, vars, free)
       (t, [], free) sigma
-    in vars, abs
+    in vars, s, abs
       
   let defs = ref []
 
@@ -398,48 +438,39 @@ module Forcing(F : ForcingCond) = struct
         if !memo then 
 	  let (body, inst) = List.assoc name !defs in inst
 	else
-	  let vars, abs = abstract (ty sigma) sigma in
+	  let vars, s, abs = abstract (ty sigma) sigma in
 	  let inst = mkApp (mkVar name, Array.of_list (List.map mkVar vars)) in
-	    defs := (name, (abs, inst)) :: !defs;
+	    defs := (name, (abs, (s, inst))) :: !defs;
 	    memo := true;
-	    inst
+	    (s, inst)
 
-  let rec trans (c : constr) (p : constr) : constr forcing_term =
-    let trans c p = simpl (trans c p) in
+  let rec trans (c : constr) (p : constr) : (sorting * constr) forcing_term =
+    let trans c p sigma = map_trans_res simplc (trans c p sigma) in
     let pc = return p in
     let interpretation c p sigma = interp (trans c p sigma) (iota (return p)) sigma in
     let trivial c =
-      let term = mk_cond_lam (next_q ()) (mk_appc coq_subp [pc]) (return c) in
+      let term = mk_cond_lam (next_q ()) (mk_appc coq_subp [pc]) (return (InType, c)) in
       let restr = 
 	let qn = next_q () and rn = next_r () and sn = next_s () in
 	  mk_cond_lam qn (mk_appc coq_subp [pc])
 	  (mk_cond_lam rn (mk_appc coq_subp [mk_var qn])
 	   (mk_cond_lam sn (mk_appc coq_subp [mk_var rn])
-	    (mk_var sn))) 
-      in (mk_pair term restr)
+	      (dec_trans InType (mk_var sn)))) 
+      in dec_trans InType (mk_sheaf_pair p term restr)
     in
       match kind_of_term c with
-      | Sort s -> 
-	  if s = Prop Null then mk_appc coq_prop_sheaf [pc]
-	  else mk_appc coq_type_sheaf [pc]
-
-	(*     coq_prop_sheaf, coq_prop_sheafC, mk_prop_sheaf_pair *)
-	(*   else coq_sheaf, coq_sheafC, mk_sheaf_pair *)
-	(* in *)
-	(* let q = next_q () in  *)
-	(* let fst = mk_cond_lam q (subpt pc)  *)
-	(*   (mk_appc sh [var q]) *)
-	(* in *)
-	(* let snd = mk_appc shC [pc] in *)
-	(*   (shp p fst snd) *)
+      | Sort s -> fun sigma -> 
+	  if s = Prop Null then
+	    InProp, mk_appc coq_prop_sheaf [pc] sigma
+	  else InType, mk_appc coq_type_sheaf [pc] sigma
 
       | Prod (na, t, u) -> 
 	let na = next_anon () in
 	let rn = next_r () and qn = next_q () and fn = next_f () and sn = next_s () in
 	let prod sigma =
 	  let r = mk_var rn sigma in
-	  let sigmar = (Name rn, (mk_appc coq_subp [mk_var qn] sigma), None) ::
-	    (Name qn, (mk_appc coq_subp [pc] sigma), None) ::
+	  let sigmar = (Name rn, (InType, mk_appc coq_subp [mk_var qn] sigma), None) ::
+	    (Name qn, (InType, mk_appc coq_subp [pc] sigma), None) ::
 	    sigma
 	  in
 	  let t' = remember (next_ty ()) (trans t (mkVar rn)) sigmar in
@@ -450,25 +481,30 @@ module Forcing(F : ForcingCond) = struct
 	  in
 	  let ftyrem = remember (next_ty ()) fty in
 	  let ftyprop = 
-	    let prop = mk_cond_lam fn ftyrem (comm_pi (mk_var fn) na rn t' sn u' (mk_var qn)) in
-	      remember (next_prop ()) prop
+	    if fst u' = IsProp then None
+	    else
+	      let prop = mk_lam fn ftyrem (comm_pi (mk_var fn) na rn t' sn u' (mk_var qn)) in
+		Some (remember (next_prop ()) prop)
 	  in
 	  let ty =
-	    (mk_cond_lam qn (mk_appc coq_subp [pc])
-	     (mk_appc (Lazy.force coq_sig)
-	      [ftyrem;
-	       ftyprop]))
+	    mk_cond_lam qn (mk_appc coq_subp [pc])
+	      (match ftyprop with
+	       | None -> ftyrem
+	       | Some ftyprop ->
+		   (dec_trans InType (mk_appc (Lazy.force coq_sig)
+					[get_trans ftyrem;
+					 get_trans ftyprop])))
 	  in
 	  let value =
 	    let qn' = next_q () in
 	    let rn' = next_r () in
 	      mk_cond_lam qn' (mk_appc coq_subp [pc])
 	      (mk_cond_lam rn' (mk_appc coq_subp [mk_var qn'])
-	       (mk_cond_lam fn (simpl (mk_app ty [mk_var qn']))
+	       (mk_cond_lam fn (simpl (mk_app (get_trans ty) [mk_var qn']))
 		(mk_cond_lam sn (mk_appc coq_subp [mk_var rn'])
-		 (mk_app (mk_var fn) [mk_var sn]))))
+		   (dec_trans (fst u') (mk_app (mk_var fn) [mk_var sn])))))
 	  in 
-	    (mk_sheaf_pair p ty value) sigma
+	    fst u', (mk_sheaf_pair p ty value) sigma
 	in prod
 
       | Lambda (na, t, u) -> 
@@ -478,8 +514,8 @@ module Forcing(F : ForcingCond) = struct
 	  let t' = trans t (mkVar qn) sigma in
 	  let term =
 	    mk_cond_lam qn (mk_appc coq_subp [pc])
-	    (mk_var_lam na (interp t' (mk_var qn) sigma) (mkVar qn)
-	     (trans u (mkVar qn)))
+	      (mk_var_lam na (interp t' (mk_var qn) sigma) (mkVar qn)
+		 (trans u (mkVar qn)))
 	  in term sigma
 	in l
 
@@ -488,43 +524,65 @@ module Forcing(F : ForcingCond) = struct
 	(fun sigma -> 
 	 let (var, tr, cond) = find_rel sigma (pred n) in
 	 let restrict = restriction tr (fun sigma -> cond) pc in
-  	   (simpl (mk_app restrict [return (mkVar (out_name var))]) sigma))
+  	   (fst tr), (simpl (mk_app (get_trans restrict) [return (mkVar (out_name var))]) sigma))
 
       | App (f, args) when f = Lazy.force coq_app -> 
 	let fty = args.(1) and n = args.(2) and m = args.(3) in
 	let na, t, u = destLambda fty in
 	let uxn = interpretation (subst1 n u) p in
 	let u sigma = 
-	  let sigma' = ((na, t, Some (pc sigma)) :: sigma) in
+	  let sigma' = ((na, (InType, t), Some (pc sigma)) :: sigma) in
 	    interp (trans u p sigma') pc sigma' 
 	in
 	let np = trans n p in
-	  (mk_appc (Lazy.force coq_eq_rect)
-	   [uxn; mk_appc (Lazy.force coq_identity) [mk_hole]; 
-	    (fun sigma -> replace_vars [out_name na, np sigma] (u sigma));
-	    mk_hole; trans m p])
-	  
-      | App (f, args) when f = Lazy.force coq_conv -> 
-	let t = args.(0) and u = args.(1) and m = args.(2) in
-	  (mk_appc (Lazy.force coq_eq_rect)
-	   [interpretation u p; return (Lazy.force coq_identity); 
-	    interpretation t p; mk_hole; trans m p])
-	
+	  (fun sigma -> 
+	     let transp = trans m p sigma in
+	       (fst transp,
+		(mk_appc (Lazy.force coq_eq_rect)
+		   [get_trans uxn; mk_appc (Lazy.force coq_identity) [mk_hole]; 
+		    (fun sigma -> replace_vars [out_name na, snd (np sigma)] (snd (u sigma)));
+		    mk_hole; return (snd transp)] sigma)))
+	    
+      (* | App (f, args) when f = Lazy.force coq_conv ->  *)
+      (* 	  let t = args.(0) and u = args.(1) and m = args.(2) in *)
+      (* 	    (fun sigma -> *)
+      (* 	       let transp = trans m p sigma in *)
+      (* 		 (fst transp, *)
+      (* 		  (mk_appc (Lazy.force coq_eq_rect) *)
+      (* 		     [interpretation u p; return (Lazy.force coq_identity);  *)
+      (* 		      interpretation t p; mk_hole; snd transp] sigma))) *)
+	      
       | App (f, args) when f = Lazy.force coq_sum -> assert false
-
+	  
       | App (f, args) -> 
-	(mk_app (trans f p) (iota_refl pc :: List.map (fun x -> trans x p) (Array.to_list args)))
+	  (fun sigma ->
+	     let transfp = trans f p sigma in
+	       (fst transfp, 
+		List.fold_left
+		  (fun acc arg -> 
+		     mk_app acc [iota_refl pc; get_trans (trans arg p)])
+		  (return (snd transfp)) (Array.to_list args) sigma))
 
       | Const cst ->
 	(try 
 	   let env = Global.env () in
 	   let cty = type_of_constant env cst in
-	   let ty = mkApp (constr_of_global forcing_class.Typeclasses.cl_impl, [| cty; c |]) in
-	   let evars, impl = Typeclasses.resolve_one_typeclass env Evd.empty ty in
-	     (return (whd_betadeltaiota env Evd.empty
-		      (mkApp (constr_of_global
-			      (Nametab.global (Ident (dummy_loc, id_of_string "forcing_traduction"))),
-			      [| cty; c; impl; p |]))))
+	   let evd, prop_or_type = Evarutil.new_evar
+	     Evd.empty env (constr_of_global (Lazy.force coq_forcing_prop_or_type))
+	   in
+	   let ty = mkApp (constr_of_global forcing_class.Typeclasses.cl_impl, 
+			   [| cty; c; prop_or_type |]) in
+	   let evars, impl = Typeclasses.resolve_one_typeclass env evd ty in
+	   let is_prop_or_type =
+	     match kind_of_term (Evarutil.nf_evar evars prop_or_type) with
+	     | Construct (ind, n) -> if n = 1 then IsProp else InType
+	     | _ -> InType
+	   in
+	   let proj = Nametab.global (Ident (dummy_loc, id_of_string "forcing_traduction")) in
+	     return (is_prop_or_type, 
+		     (whd_betadeltaiota env Evd.empty
+			(mkApp (constr_of_global proj,
+				[| cty; c; prop_or_type; impl; p |]))))
 	 with Not_found -> trivial c)
 
       | _ -> trivial c
@@ -561,13 +619,13 @@ module Forcing(F : ForcingCond) = struct
 
   let interpretation c sigma = 
     let pn = next_p () in let p = mk_var pn in
-    let sigma' = (Name pn, condition_type, None) :: sigma in
+    let sigma' = (Name pn, (InType, condition_type), None) :: sigma in
     let tr _ = trans c (mkVar pn) sigma' in
-    let inter = interp (simpl (mk_app tr [p]) sigma') p sigma' in
-      mkProd (Name pn, condition_type, inter)
+    let (sort, tr) as inter = tr sigma' in
+    let _, inter = interp inter p sigma' in
+      sort, mkProd (Name pn, condition_type, inter)
 
-
-  let interp env evs term = 
+  let interp_constr env evs term = 
     let j, _ = Pretyping.understand_judgment_tcc evs env term in
       j.uj_val, j.uj_type
 
@@ -578,7 +636,7 @@ module Forcing(F : ForcingCond) = struct
     let evs = ref Evd.empty in
       Flags.program_mode := true;
 
-    let term, ty = interp env evs dt in
+    let term, ty = interp_constr env evs dt in
     let term = Tacred.simpl env !evs term in
     let evars, _, def, ty = Obligations.eterm_obligations env name !evs 0 term ty in
       ignore (Obligations.add_definition name ~term:def ?hook:k ty evars)
@@ -587,12 +645,12 @@ module Forcing(F : ForcingCond) = struct
     defs := [];
     clear_p (); clear_q (); clear_r (); clear_s (); clear_f (); clear_anon (); clear_ty ();
     clear_prop ();
-    let c' = tr c [] in
+    let s, c' = tr c [] in
     let hook subst = 
       let c' = named_to_nameless (Global.env ()) subst c' in
       let dt = Detyping.detype true [] [] c' in
       let dt = meta_to_holes dt in
-	k dt
+	k dt s
     in
     let rec aux subst defs = 
       match defs with 
@@ -618,13 +676,13 @@ module Forcing(F : ForcingCond) = struct
     let env = Global.env () and sigma = Evd.empty in
     let c = Constrintern.interp_constr sigma env c in
       translate id tr c env sigma 
-      (fun term' ->
+      (fun term' s ->
        let env = (Global.env ()) in
        let evs = ref sigma in
-       let term, ty = interp env evs term' in
+       let term, ty = interp_constr env evs term' in
        let term = Tacred.simpl env !evs term in
        let evars, _, def, ty = Obligations.eterm_obligations env id !evs 0 term ty in
-       let hook = Option.map (fun f -> f c) hook in
+       let hook = Option.map (fun f -> f c s) hook in
 	 ignore (Obligations.add_definition id ~term:def ?hook ty evars))
       
   open Decl_kinds
@@ -633,20 +691,30 @@ module Forcing(F : ForcingCond) = struct
   let reference_of_global g = 
     Qualid (dummy_loc, Nametab.shortest_qualid_of_global Idset.empty g)
 
-  let forcing_operator id c =
+  let forcing_operator is_lemma id c =
     let mode = 
       let m = !Flags.program_mode in
 	Flags.program_mode := true; m in
-    let hook ty _ gr = 
+    let hook ty s _ gr = 
       let env = Global.env () in
       let ax = 
 	Declare.declare_constant id (ParameterEntry (None, ty, None), IsAssumption Logical)
       in
       let trty = constr_of_global gr in
       let evars, ev = Evarutil.new_evar Evd.empty env trty in
-      let body, types = 
-	Typeclasses.instance_constructor forcing_class 
-        [ty; mkConst ax; trty; ev]
+      let cl, (body, types) = 
+	if is_lemma then
+	  (forcing_lemma_class,
+	   Typeclasses.instance_constructor forcing_lemma_class
+             [ty; mkConst ax; trty; ev])
+	else
+	  let prop_or_type = 
+	    if s = InProp then Lazy.force coq_forcing_is_prop
+	    else Lazy.force coq_forcing_is_type
+	  in
+	    (forcing_class,
+	     Typeclasses.instance_constructor forcing_class 
+               [ty; mkConst ax; constr_of_global prop_or_type; trty; ev])
       in
       let id' = add_suffix id "_inst" in
       let evars, _, def, ty = 
@@ -655,7 +723,7 @@ module Forcing(F : ForcingCond) = struct
 	ignore (Obligations.add_definition id' ~term:def 
 		~hook:(fun loc gr ->
 		       Typeclasses.add_instance
-		       (Typeclasses.new_instance forcing_class None false gr))
+		       (Typeclasses.new_instance cl None true gr))
 	        ty evars);
 	Flags.program_mode := mode
     in command (add_suffix id "_trans") interpretation c ~hook
@@ -678,7 +746,10 @@ module NatForcing = Forcing(NatCond)
 (* END *)
 
 VERNAC COMMAND EXTEND Forcing_operator
-[ "Forcing" "Operator" ident(i) ":" constr(c)  ] -> [ NatForcing.forcing_operator i c ]
+[ "Forcing" "Operator" ident(i) ":" constr(c)  ] -> [ NatForcing.forcing_operator false i c ]
+END
+VERNAC COMMAND EXTEND Forcing_lemma
+[ "Forcing" "Lemma" ident(i) ":" constr(c)  ] -> [ NatForcing.forcing_operator true i c ]
 END
 
 (* VERNAC COMMAND EXTEND Force *)
