@@ -294,6 +294,8 @@ module Forcing(F : ForcingCond) = struct
   let get_trans t sigma = snd (t sigma)
 
   let dec_trans s t = fun sigma -> (s, t sigma)
+  let lift_res n = map_trans_res (lift n)
+  let liftn_res n m = map_trans_res (liftn n m)
 
   let interp (s, tr) p = 
     let rec term tr = 
@@ -371,10 +373,11 @@ module Forcing(F : ForcingCond) = struct
   let comm_pi m na rn t' sn u' p =
     mk_cond_prod rn (subpt p)
       (mk_cond_prod sn (subpt (mk_var rn))
-	 (mk_var_prod na t' (iota_refl (mk_var rn))
+	 (mk_var_prod na (lift_res 1 t') (iota_refl (mk_var rn))
 	    (fun sigma -> 
-	       let sort, restru' = restriction u' (mk_var rn) (mk_var sn) sigma in
-	       let _, restrt' = restriction t' (iota_refl (mk_var rn)) (mk_var sn) sigma in
+	       let sort, restru' = restriction (liftn_res 1 2 u') (mk_var rn) (mk_var sn) sigma in
+	       let _, restrt' = restriction (lift_res 2 t')
+		 (iota_refl (mk_var rn)) (mk_var sn) sigma in
 	       let equiv = mk_appc (Lazy.force coq_eq) [mk_ty_hole] in
 		 (IsProp,
 		  (mk_app equiv
@@ -455,6 +458,7 @@ module Forcing(F : ForcingCond) = struct
   let remember name ty = 
     fun sigma -> ty sigma
 
+
   let rec trans (c : constr) (p : constr) : (sorting * constr) forcing_term =
     let trans c p sigma = map_trans_res simplc (trans c p sigma) in
     let pc = return p in
@@ -483,8 +487,9 @@ module Forcing(F : ForcingCond) = struct
 	    (Name qn, (InType, mk_appc coq_subp [pc] sigma), None) :: sigma
 	  in
 	  let sigmar = (Name rn, (InType, mk_appc coq_subp [mk_var qn] sigmaq), None) :: sigmaq in
-	  let t' = remember (next_ty ()) (trans t (mkVar rn)) sigmar in
-	  let u' = remember (next_ty ()) (trans u (mkVar rn)) ((Name na, t', Some (mkRel 1)) :: sigmar) in
+	  let t' = remember (next_ty ()) (trans t (mkRel 1)) sigmar in
+	  let u' = remember (next_ty ()) (trans u (mkRel 2)) 
+	    ((Name na, t', Some (mkRel 1)) :: sigmar) in
 	  let fty = 
  	    mk_cond_prod rn (mk_appc coq_subp [mk_var qn])
 	      (mk_var_prod na t' (mk_var rn) (interp u' (mk_var rn)))
@@ -493,7 +498,12 @@ module Forcing(F : ForcingCond) = struct
 	  let ftyprop = 
 	    if fst u' = IsProp then None
 	    else
-	      let prop = mk_lam fn ftyrem (comm_pi (mk_var fn) na rn t' sn u' (mk_var qn)) in
+	      (* t' in r :: sigma, moving to r :: fn :: sigma *)
+	      (* u' in t' :: r :: sigma, moving to t' :: r :: fn :: sigma *)
+	      let commpi = 
+		comm_pi (mk_var fn) na rn (liftn_res 1 2 t') sn (liftn_res 1 3 u') (mk_var qn)
+	      in
+	      let prop = mk_lam fn ftyrem commpi in
 		Some (remember (next_prop ()) prop)
 	  in
 	  let ty =
@@ -521,11 +531,11 @@ module Forcing(F : ForcingCond) = struct
 	let l sigma =
 	  let na = if na = Anonymous then next_anon () else out_name na in
 	  let qn = next_q () in
-	  let t' = trans t (mkVar qn) sigma in
+	  let t' = trans t (mkRel 1) sigma in
 	  let term =
 	    mk_cond_lam qn (mk_appc coq_subp [pc])
 	      (mk_var_lam na (interp t' (mk_var qn) sigma) (mk_var qn)
-		 (trans u (mkVar qn)))
+		 (trans u (mkRel 2)))
 	  in term sigma
 	in l
 
@@ -534,8 +544,10 @@ module Forcing(F : ForcingCond) = struct
 	(fun sigma -> 
 	 let (var, tr, cond) = find_rel sigma (pred n) in
 	 let restrict = restriction (map_trans_res (lift var) tr) 
-	   (fun sigma -> lift var cond) pc in
-  	   (fst tr), (simpl (mk_app (get_trans restrict) [return (mkRel var)]) sigma))
+	   (fun sigma -> lift var cond) pc 
+	 in
+	 let tr' = if fst tr = InProp then IsProp else fst tr in
+	   tr', (simpl (mk_app (get_trans restrict) [return (mkRel var)]) sigma))
 
       | App (f, args) when f = Lazy.force coq_app -> 
 	let fty = args.(1) and n = args.(2) and m = args.(3) in

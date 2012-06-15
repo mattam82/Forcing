@@ -127,7 +127,7 @@ Program Definition later_trans_impl : later_trans :=
           fun p : nat => exist later_trans_sheaf _.
 
 Next Obligation of later_trans_impl.
-  red. intros. simpl.
+  intros. simpl.
   unfold sheafC.
   destruct arg as [sh [transp [rt tt]]].
   simpl. unfold later_trans_sheaf. apply f_equal. apply sigma_eq.
