@@ -396,16 +396,24 @@ module Forcing(F : ForcingCond) = struct
   let mk_dep_pair a b : constr forcing_term =
     mk_appc (Lazy.force coq_dep_pair) [mk_ty_hole; mk_ty_hole; a; b]
 
-  let mk_sheaf_pair p a b : constr forcing_term =
-    let shty = mkProd (Anonymous, mkApp (coq_subp, [| p |]), new_Type ()) in
-    let trty = mkApp (coq_transport, [| p; mkRel 1 |]) in
-    mk_appc (Lazy.force coq_dep_pair) 
-      [return shty;
-       return (mkLambda (Name (id_of_string "sh"), shty,
-			 mkApp (Lazy.force coq_sig,
-				[|trty;
-				  mkApp (coq_trans_prop, [|p; mkRel 1|])|])));
-       get_trans a; get_trans b]
+  let mk_sheaf_pair s p a b : constr forcing_term =
+    let c, dom, codom = 
+      if s = InType then
+	let shty = mkProd (Anonymous, mkApp (coq_subp, [| p |]), new_Type ()) in
+	let trty = mkApp (coq_transport, [| lift 1 p; mkRel 1 |]) in
+	let lam =
+	  mkLambda (Name (id_of_string "sh"), shty,
+		    mkApp (Lazy.force coq_sig,
+			   [|trty;
+			     mkApp (coq_trans_prop, [|lift 1 p; mkRel 1|])|]))
+	in (coq_dep_pair, shty, lam)
+      else 
+	let shty = mkProd (Anonymous, mkApp (coq_subp, [| p |]), mkProp) in
+	let trty = mkApp (coq_prop_transport, [| p |]) in
+	  (coq_exist, shty, trty)
+    in
+      mk_appc (Lazy.force c) 
+	[return dom; return codom; get_trans a; get_trans b]
 
   (* let mk_prop_sheaf_pair p a b : constr forcing_term = *)
   (*   mk_appc (Lazy.force coq_exist)  *)
@@ -421,43 +429,49 @@ module Forcing(F : ForcingCond) = struct
       | [], _ -> assert false
     in aux sigma n 1
 
+
+  let variables_of t =
+    let rec aux k vars c = 
+      match kind_of_term c with
+      | Rel n -> 
+	  if n <= k then vars
+	  else Intset.add (n - k) vars
+      | _ ->
+	  fold_constr_with_binders succ aux k vars c
+    in 
+      aux 0 Intset.empty t
+
   let abstract (s, t) sigma =
-    let free = global_vars_set (Global.env ()) t in
-    let abs, vars, _ = 
-      List.fold_left 
-        (fun (c, vars, free) (na, ty, cond) ->
-	 let id = out_name na in
-	   if Idset.mem id free then
-	     let s, ty' = match cond with
-	       | None -> ty
-	       | Some cond -> interp ty (return cond) sigma
-	     in 
-	     let ids' =
-	       Idset.union (global_vars_set (Global.env ()) ty')
-	       (Idset.add id free)
-	     in
-	       mkLambda (na, ty', c), (id :: vars), ids'
-	   else c, vars, free)
-      (t, [], free) sigma
-    in vars, s, abs
+    let rec aux vars i ctx t = 
+      match ctx with
+      | (na, ty, cond) :: rest ->
+	  if noccurn 1 t then
+	    aux vars (succ i) rest (subst1 mkProp t)
+	  else
+	    let s, ty' = match cond with
+	      | None -> ty
+	      | Some cond -> interp ty (return cond) rest
+	    in 
+	    let t' = mkLambda (na, ty', t) in
+	      aux (i :: vars) (succ i) rest t'
+      | [] -> vars, t
+    in 
+    let vars, t' = aux [] 1 sigma t in
+      vars, s, t'
       
-  let defs = (ref [] : (identifier * (constr * (sorting * constr list))) list ref)
+  let defs = (ref [] : (identifier * (constr * (sorting * constr))) list ref)
 
-  (* let remember name ty =  *)
-  (*   let memo = ref false in *)
-  (*     fun sigma ->  *)
-  (*       if !memo then  *)
-  (* 	  let (body, inst) = List.assoc name !defs in inst *)
-  (* 	else *)
-  (* 	  let vars, s, abs = abstract (ty sigma) sigma in *)
-  (* 	  let inst = mkApp (mkVar name, Array.of_list (List.map mkVar vars)) in *)
-  (* 	    defs := (name, (abs, (s, inst))) :: !defs; *)
-  (* 	    memo := true; *)
-  (* 	    (s, inst) *)
-
-  let remember name ty = 
-    fun sigma -> ty sigma
-
+  let remember name ty =
+    let memo = ref false in
+      fun sigma ->
+        if !memo then
+  	  let (body, inst) = List.assoc name !defs in inst
+  	else
+  	  let vars, s, abs = abstract (ty sigma) sigma in
+  	  let inst = mkApp (mkVar name, Array.of_list (List.map mkRel vars)) in
+  	    defs := (name, (abs, (s, inst))) :: !defs;
+  	    memo := true;
+  	    (s, inst)
 
   let rec trans (c : constr) (p : constr) : (sorting * constr) forcing_term =
     let trans c p sigma = map_trans_res simplc (trans c p sigma) in
@@ -471,7 +485,7 @@ module Forcing(F : ForcingCond) = struct
 	  (mk_cond_lam rn (mk_appc coq_subp [mk_var qn])
 	   (mk_cond_lam sn (mk_appc coq_subp [mk_var rn])
 	      (dec_trans InType (mk_var sn)))) 
-      in dec_trans InType (mk_sheaf_pair p term restr)
+      in dec_trans InType (mk_sheaf_pair InType p term restr)
     in
       match kind_of_term c with
       | Sort s -> fun sigma -> 
@@ -518,13 +532,14 @@ module Forcing(F : ForcingCond) = struct
 	  let value =
 	    let qn' = next_q () in
 	    let rn' = next_r () in
+	    let liftty sigma = lift 2 (get_trans ty sigma) in
 	      mk_cond_lam qn' (mk_appc coq_subp [pc])
 	      (mk_cond_lam rn' (mk_appc coq_subp [mk_var qn'])
-	       (mk_cond_lam fn (simpl (mk_app (get_trans ty) [mk_var qn']))
+	       (mk_cond_lam fn (simpl (mk_app liftty [mk_var qn']))
 		(mk_cond_lam sn (mk_appc coq_subp [mk_var rn'])
 		   (dec_trans (fst u') (mk_app (mk_var fn) [mk_var sn])))))
 	  in 
-	    fst u', (mk_sheaf_pair p ty value) sigma
+	    fst u', (mk_sheaf_pair (fst u') p ty value) sigma
 	in prod
 
       | Lambda (na, t, u) -> 
@@ -617,14 +632,10 @@ module Forcing(F : ForcingCond) = struct
       match kind_of_term c with
       | Meta _ -> c
       | Var id -> 
-	(try
-	   let i, _ = lookup_rel (Name id) (rel_context env) in
-	     mkRel i
-	 with Not_found -> 
-	   try List.assoc id subst
+	  (try List.assoc id subst
 	   with Not_found -> c)
       | _ ->
-	map_constr_with_full_binders (fun decl env -> push_rel decl env) aux env c
+	  map_constr_with_full_binders (fun decl env -> push_rel decl env) aux env c
     in 
     let c' = aux env c in
       c'
@@ -655,8 +666,8 @@ module Forcing(F : ForcingCond) = struct
       j.uj_val, j.uj_type
 
   let define_aux env name subst body k =
-    (* let c' = named_to_nameless env subst body in *)
-    let dt = Detyping.detype true [] [] body in
+    let c' = named_to_nameless env subst body in
+    let dt = Detyping.detype true [] [] c' in
     let dt = meta_to_holes dt in
     let evs = ref Evd.empty in
       Flags.program_mode := true;

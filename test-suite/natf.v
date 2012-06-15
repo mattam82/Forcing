@@ -76,7 +76,7 @@ Forcing Operator Succf : (natf -> natf).
 Next Obligation.
   red. intros.
   exists (λ (q:subp p) (n : natf_sheaf (ι q)) (r:subp q), succf (`r) (n r)).
-  intros.
+  intros. red.
   reflexivity.
 Defined.
 
@@ -134,7 +134,7 @@ Lemma succrefl : (forall x : natf, eqf natf (Succf x) (Succf x)).
 Next Obligation.
 Proof.
   red. intros. red. simpl; intros.
-  reflexivity. 
+  red. reflexivity. 
 Qed.
 
 Ltac forcing ::= 
@@ -150,7 +150,7 @@ Forcing
 Lemma eqsucc : (forall x y : natf, eqf natf x y -> eqf natf (Succf x) (Succf y)).
 Next Obligation.
   Transparent natf_transp natf_sheaf.
-  red. intros. red. simpl; intros.
+  repeat (red; simpl; intros). 
   red in H. simpl in *.
   apply f_equal.
   extensionality r0.
@@ -165,7 +165,8 @@ Qed.
 Forcing 
 Lemma eqrefl : (forall A : Type, forall x : A, eqf A x x).
 Next Obligation.
-  red.
-  intros. red. intros. reflexivity.
+  reduce. reflexivity.
 Qed.
+
+
 
