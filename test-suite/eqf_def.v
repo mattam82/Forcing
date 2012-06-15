@@ -1,47 +1,16 @@
 Require Import Forcing.
 Require Import RelationClasses.
 
-Notation " '{Σ' x , y } " := (exist x y).
-Notation " '(Σ' x , y ) " := (existT x y).
-
 Import NatForcing.
 Import NatCondition.
 Open Scope forcing_scope.
 
 Hint Extern 4 => progress (unfold le in *) : forcing.
-
-Lemma subp_proof2 p (q : subp p) : ` q <= p. apply subp_proof. Defined.
-Hint Resolve subp_proof2 : forcing.
-
-Ltac forcing_le :=
-  match goal with
-    | |- le (@proj1_sig _ _ ?y) ?x => 
-        apply (proj2_sig y)
-    | |- ` ?x <= ?y => 
-      match type of x with
-        subp ?r => transitivity r
-      end
-    | |- le (@subp_proj ?x ?y) ?x => 
-        apply (proj2_sig y)
-    | |- subp_proj ?x <= ?y => 
-      match type of x with
-        subp ?r => transitivity r
-      end
-  end.
-
-Hint Extern 2 (_ <= _) => forcing_le : forcing.
-
 Obligation Tactic := program_simpl; forcing.
-
-Program Definition embed (p : P) : subp p := p.
 
 Notation " '{Σ'  x } " := (exist x _).
 
 Require Import Le.
-Notation ι r := (iota r).
-
-Lemma exist_eq {A : Type} {P : A -> Prop} (x y : A) (p : P x) (q : P y) : x = y -> exist x p = exist y q.
-Proof. intros; subst; reflexivity. Qed.
 
 Forcing Operator eqf : (forall A, A -> A -> Prop).
 

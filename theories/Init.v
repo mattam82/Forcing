@@ -16,91 +16,24 @@ Implicit Arguments pairT [[A] [B]].
 
 Definition conv_annot {T U : Type} (M : U) : U := M.
 Definition app_annot {T} {U : T -> Type} {N : T} (V : U N) : U N := V.
-
-Definition eq_type {A B : Type} (p : A = B) (a : A) (b : B) := 
-  eq_rect _ (fun X => X) a _ p = b.
-
-(* Eq_rect lemmas *)
-
-Lemma eq_rect_irrel A (x : A) P (px : P x) y prf (py : P y) : 
-  px = eq_rect y P py x (symmetry prf) -> eq_rect x P px y prf = py.
-Proof.
-  intros. destruct prf. simpl in *. exact H.
-Qed.
-
-Lemma eq_rect_f_equal {A B} (f : A -> B) (x y : A) (P : B -> Type) (p : P (f x)) (prf : x = y) :
-  eq_rect (f x) P p (f y) (f_equal f prf) (* P (f y) *) =
-  eq_rect x (fun x => P (f x)) p y prf.
-Proof. destruct prf. simpl. reflexivity. Defined.
-
-(* Lemma eq_trans_eq_refl_l {A} (x y : A) (p : x = y) : eq_trans eq_refl p = p. *)
-(* Proof. destruct p. reflexivity. Defined. *)
   
-(* Lemma eq_trans_eq_refl_r {A} (x y : A) (p : x = y) : eq_trans p eq_refl = p. *)
-(* Proof. destruct p. reflexivity. Defined. *)
-
-Lemma eq_rect_sym {A} {Q : A -> Type} (x y : A) (p : Q y) (prf : x = y) :
-  eq_rect x Q (eq_rect y Q p x (eq_sym prf)) y prf = p.
-Proof. destruct prf. simpl. reflexivity. Qed.
-
-Lemma eq_rect_comm {A} {Q : A -> Type} (x y : A) (p : Q y) (prf : x = y) (prf' : y = x) :
-  eq_rect x Q (eq_rect y Q p x prf') y prf = p.
-Proof. change prf' with (eq_sym prf). apply eq_rect_sym. Qed.
-
-Lemma ext_eq_pointwise {A B} (f g : A -> B) (prf : f = g) (x : A) : f x = g x.
-Proof. now subst f. Defined.
-  
-Lemma eq_rect_f {A B C} (f g : A -> B) (P : (A -> B) -> C -> Type) 
-  (pf : forall C, P f C) (prf : f = g) (x : C) : 
-  eq_rect f (fun f : A -> B => forall c, P f c) pf g prf x = 
-  eq_rect f (fun f : A -> B => P f x) (pf x) g prf. 
-Proof. destruct prf. simpl. reflexivity. Qed.
-  
-(* Lemma eq_rect_f {A B} (f g : forall x : A, B x) (P : (forall x : A, B x) -> Type)  *)
-(*   (prf : f = g) (c : A) (pf : B c -> P f) : *)
-(*   eq_rect f (fun f => arrow (f c) (P f)) pf g prf c. *)
-(*   eq_rect f (fun f => P f x) (pf x) g prf.  *)
-(* Proof. destruct prf. simpl. reflexivity. Qed. *)
-
 Lemma equal_existT {A} {P : A -> Type} {p : A} {x y : P p} : x = y -> (existT p x = existT p y).
 Proof. now intros ->. Defined.
-
-Lemma simplification_existT2' A (P : A -> Type) (p : A) (x y : P p) 
-  (B : forall H : (existT p x = existT p y), Type) :
-  (forall H : x = y, B (equal_existT H)) -> (forall H : (existT p x = existT p y), B H).
-Proof. intros H E. injection E. simplify_dep_elim. apply (H eq_refl). Defined.
 
 Implicit Arguments exist [[A] [P]].
 
 Lemma equal_exist {A} {P : A -> Prop} {p : A} {x y : P p} : exist p x = exist p y.
 Proof. now intros. Defined.
 
-Require Import EqdepFacts.
+Lemma exist_eq {A : Type} {P : A -> Prop} (x y : A) (p : P x) (q : P y) :
+  x = y -> exist x p = exist y q.
+Proof. intros; subst; reflexivity. Qed.
 
-Lemma simplification_exist A (P : A -> Prop) (p : A) (x y : P p) 
-  (B : forall H : (exist p x = exist p y), Type) :
-  (B equal_exist) -> (forall H : _ = _, B H).
-Proof. intros H E. apply H. Defined.
+Lemma equal_f {A B : Type} {f g : A -> B} : f = g -> forall x : A, f x = g x. 
+Proof. now intros ->. Qed.
 
-Lemma simplification_existP A (P : A -> Prop) (p : A) (x y : P p) 
-  (B : forall H : (exist p x = exist p y), Prop) :
-  (B equal_exist) -> (forall H : _ = _, B H).
-Proof. intros H E. apply H. Defined.
-
-Lemma eq_rect_exist {B} {R : B -> Prop} {Q : sig R -> Type} (b : B) (x y : R b) (p : Q (exist b x)) 
-  (prf : exist b x = exist b y) :
-  eq_rect (exist b x) Q p (exist b y) prf = (p : Q (exist b y)).
-Proof. change prf with (@eq_refl _ (exist b x)). reflexivity. Qed.
-
-Ltac simpl_eq_rect_exist :=
- match goal with
-   |- context[ eq_rect (exist ?q ?H) ?P ?p (exist ?q ?H') ?prf ] => 
-     rewrite (eq_rect_exist (Q:=P) q H H' p prf)
- end.
-
-(* Lemma eq_rect_pi {A : Prop} {Q : A -> Type} (p q : A) (x : forall x : A, Q x) : *)
-(*   eq_rect p Q (x p) q (proof_irrelevance A p q) = x q. *)
-(* Proof. set(foo:=proof_irrelevance A p q). destruct foo. simpl. reflexivity. Qed. *)
+Lemma equal_dep_f {A} {B : A -> Type} {f g : ∀ x : A, B x} : f = g -> forall x : A, f x = g x. 
+Proof. now intros ->. Qed.
 
 (* To control backtracking during proof search *)
 Class Tried (P : Prop).
@@ -114,6 +47,8 @@ Ltac not_tried p :=
     | _ => idtac
   end.
 
+Notation " '{Σ' x , y } " := (exist x y).
+Notation " '(Σ' x , y ) " := (existT x y).
 
 (** Basic definitions for forcing *)
 
@@ -135,6 +70,8 @@ Class ForcingOp {A : Type} (a : A) (p : prop_or_type) := {
   forcing_traduction_type : Type;
   forcing_traduction : forcing_traduction_type
 }.
+
+Implicit Arguments forcing_traduction [[A] [ForcingOp]].
 
 Class ForcingLemma {P : Prop} (p : P) := {
   forcing_traduction_prop : Prop;
@@ -177,7 +114,7 @@ Module Forcing(F : Condition).
   Proof. apply (proj2_sig q). Defined.
   Hint Resolve subp_proof : forcing.
 
-  Program Definition iota_refl p : subp p := p.
+  Program Definition embed (p : P) : subp p := p.
   Next Obligation. red; reflexivity. Qed.
 
   (** We define an overloaded [ι] operator to infer canonical 
@@ -189,7 +126,31 @@ Module Forcing(F : Condition).
   
   Global Implicit Arguments iota [[p] [q] [Iota]].
 
+  Notation ι r := (iota r).
+
+  (*Hint Extern 4 => progress (unfold le in * ) : forcing.*)
   
+  Lemma subp_proof2 p (q : subp p) : ` q <= p. 
+  Proof. apply subp_proof. Defined.
+  Hint Resolve subp_proof2 : forcing.
+  
+  Ltac forcing_le :=
+    match goal with
+      | |- le (@proj1_sig _ _ ?y) ?x => 
+          apply (proj2_sig y)
+      | |- ` ?x <= ?y => 
+          match type of x with
+              subp ?r => transitivity r
+          end
+      | |- le (@subp_proj ?x ?y) ?x => 
+          apply (proj2_sig y)
+      | |- subp_proj ?x <= ?y => 
+          match type of x with
+              subp ?r => transitivity r
+          end
+    end.
+
+  Hint Extern 2 (_ <= _) => forcing_le : forcing.
   Hint Extern 0 (_ <= _) => apply reflexivity : forcing. 
   Hint Extern 0 (_ = _) => try f_equal ; reflexivity : forcing.
 
@@ -210,8 +171,6 @@ Module Forcing(F : Condition).
   (** [q : P p] so forall [r : P q] [r : P p] as well *)
   Global Program Instance iota_pi_inv {p} (q : subp p) (r : subp q) : Iota q r p :=
     { iota := (r : P) }.
-
-  Next Obligation. red; transitivity q; auto with forcing. Defined.
 
   (** Iotas compose *)
   Program Definition iota_compose {p sp q r} (pq : Iota p sp q) (qr : Iota q (iota sp) r) : Iota p sp r :=
@@ -258,7 +217,7 @@ Module Forcing(F : Condition).
   Proof. exact (iota t). Defined.
 
   Example three_trans p (q : subp p) (r : subp q) (s : subp r) (t : subp s) (u : subp t) : subp q.
-  Proof. exact (iota u). Show Proof. Defined.
+  Proof. exact (iota u). Defined.
 
     (* Maybe use those instances more? *)
   Global Instance one_trans_inst p (q : subp p) (r : subp q) (s : subp r) : Iota _ s q := { iota := iota s }.

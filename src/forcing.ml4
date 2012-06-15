@@ -129,9 +129,6 @@ let coq_nondep_prod = forcing_constant "prodT"
 let coq_nondep_pair = forcing_constant "pairT"
 let coq_prop_eq = forcing_constant "prop_eq"
 
-let coq_eqtype = forcing_constant "eq_type"
-let coq_eqtype_ref = lazy (init_reference ["Forcing";"Init"] "eq_type")
-
 let coq_app = forcing_constant "app_annot"
 let coq_conv = forcing_constant "conv_annot"
 let coq_forcing_op = lazy (init_reference ["Forcing";"Init"] "ForcingOp")
@@ -178,7 +175,7 @@ module Forcing(F : ForcingCond) = struct
 
   let coq_iota = forcing_const "iota"
 
-  let coq_iota_refl = forcing_const "iota_refl"
+  let coq_embed = forcing_const "embed"
 
   let forcing_class = Typeclasses.class_info (Lazy.force coq_forcing_op)
   let forcing_lemma_class = Typeclasses.class_info (Lazy.force coq_forcing_lemma)
@@ -285,7 +282,7 @@ module Forcing(F : ForcingCond) = struct
 
   let iota p = mk_appc coq_iota [mk_hole; p; mk_hole; mk_hole]
   let iota_to p q = mk_appc coq_iota [mk_hole; p; q; mk_hole]
-  let iota_refl p = mk_appc coq_iota_refl [p]
+  let embed p = mk_appc coq_embed [p]
 
   let pi1_of = function IsProp -> Lazy.force coq_proj1_sig | _ -> Lazy.force coq_pi1
   let pi2_of = function IsProp -> Lazy.force coq_proj2_sig | _ -> Lazy.force coq_pi2
@@ -373,11 +370,11 @@ module Forcing(F : ForcingCond) = struct
   let comm_pi m na rn t' sn u' p =
     mk_cond_prod rn (subpt p)
       (mk_cond_prod sn (subpt (mk_var rn))
-	 (mk_var_prod na (lift_res 1 t') (iota_refl (mk_var rn))
+	 (mk_var_prod na (lift_res 1 t') (embed (mk_var rn))
 	    (fun sigma -> 
 	       let sort, restru' = restriction (liftn_res 1 2 u') (mk_var rn) (mk_var sn) sigma in
 	       let _, restrt' = restriction (lift_res 2 t')
-		 (iota_refl (mk_var rn)) (mk_var sn) sigma in
+		 (embed (mk_var rn)) (mk_var sn) sigma in
 	       let equiv = mk_appc (Lazy.force coq_eq) [mk_ty_hole] in
 		 (IsProp,
 		  (mk_app equiv
@@ -598,7 +595,7 @@ module Forcing(F : ForcingCond) = struct
 	       (fst transfp, 
 		List.fold_left
 		  (fun acc arg -> 
-		     mk_app acc [iota_refl pc; get_trans (trans arg p)])
+		     mk_app acc [embed pc; get_trans (trans arg p)])
 		  (return (snd transfp)) (Array.to_list args) sigma))
 
       | Const cst ->
@@ -643,14 +640,14 @@ module Forcing(F : ForcingCond) = struct
   let rec meta_to_holes gc =
     match gc with
     | Glob_term.GEvar (loc, ek, args) -> Glob_term.GHole (loc, Evd.InternalHole)
-    | Glob_term.GApp (loc, (Glob_term.GRef (loc', gr) as f), args) when gr = Lazy.force coq_eqtype_ref ->
-      let args' = List.map meta_to_holes args in
-	(match args' with
-	   [a; b; prf; t; u] ->
-	   Glob_term.GApp (loc, f,
-			   [a; b; prf; Glob_term.GCast (loc, t, Glob_term.CastCoerce);
-			    Glob_term.GCast (loc, u, Glob_term.CastCoerce)])
-	 | _ -> assert false)
+    (* | Glob_term.GApp (loc, (Glob_term.GRef (loc', gr) as f), args) when gr = Lazy.force coq_eqtype_ref -> *)
+    (*   let args' = List.map meta_to_holes args in *)
+    (* 	(match args' with *)
+    (* 	   [a; b; prf; t; u] -> *)
+    (* 	   Glob_term.GApp (loc, f, *)
+    (* 			   [a; b; prf; Glob_term.GCast (loc, t, Glob_term.CastCoerce); *)
+    (* 			    Glob_term.GCast (loc, u, Glob_term.CastCoerce)]) *)
+    (* 	 | _ -> assert false) *)
     | c -> Glob_term.map_glob_constr meta_to_holes c
 
   let interpretation c sigma = 

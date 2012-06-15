@@ -1,51 +1,14 @@
 Require Import Forcing.
 Require Import RelationClasses.
 Require Import eqf_def.
-
-Notation " '{Σ' x , y } " := (exist x y).
-Notation " '(Σ' x , y ) " := (existT x y).
+Require Import Le.
 
 Import NatForcing.
 Import NatCondition.
 Open Scope forcing_scope.
 
-Hint Extern 4 => progress (unfold le in *) : forcing.
-
-Lemma subp_proof2 p (q : subp p) : ` q <= p. apply subp_proof. Defined.
-Hint Resolve subp_proof2 : forcing.
-
-Ltac forcing_le :=
-  match goal with
-    | |- le (@proj1_sig _ _ ?y) ?x => 
-        apply (proj2_sig y)
-    | |- ` ?x <= ?y => 
-      match type of x with
-        subp ?r => transitivity r
-      end
-    | |- le (@subp_proj ?x ?y) ?x => 
-        apply (proj2_sig y)
-    | |- subp_proj ?x <= ?y => 
-      match type of x with
-        subp ?r => transitivity r
-      end
-  end.
-
-Hint Extern 2 (_ <= _) => forcing_le : forcing.
-
 Obligation Tactic := program_simpl; forcing.
-
-Program Definition embed (p : P) : subp p := p.
-
 Notation " '{Σ'  x } " := (exist x _).
-
-Require Import Le.
-Notation ι r := (iota r).
-
-Implicit Arguments forcing_traduction [[A] [ForcingOp]].
-
-Notation " '{Σ' x } " := (exist x _).
-
-Obligation Tactic := program_simpl; forcing.
 
 Forcing Operator natf : Set.
 
@@ -101,12 +64,6 @@ Qed.
 
 Ltac forcing ::= 
   try solve [simpl; unfold Psub in *; auto 20 with arith forcing].
-
-Lemma equal_f {A B : Type} {f g : A -> B} : f = g -> forall x : A, f x = g x. 
-Proof. now intros ->. Qed.
-
-Lemma equal_dep_f {A} {B : A -> Type} {f g : ∀ x : A, B x} : f = g -> forall x : A, f x = g x. 
-Proof. now intros ->. Qed.
 
 Forcing 
 Lemma eqsucc : (forall x y : natf, eqf natf x y -> eqf natf (Succf x) (Succf y)).
