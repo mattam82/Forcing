@@ -85,49 +85,11 @@ Next Obligation.
   red. intros; exact (λ (q:subp p), zerof (`q)).
 Defined.
 
-(* Forcing Operator eqf : (forall A, A -> A -> Prop). *)
-
-(* Next Obligation. *)
-(* red; simpl; intros. *)
-(* apply (H (ι r2) s2 arg2). *)
-(* Qed. *)
-
-(* Next Obligation. *)
-(* red; simpl; intros. *)
-(* split; red; intros. *)
-(* reflexivity. *)
-(* reflexivity. *)
-(* Qed. *)
-
-(* Next Obligation. *)
-(* red; simpl; intros. *)
-(* apply (H (ι r1) s1 arg1). *)
-(* Qed. *)
-
-(* Next Obligation. *)
-(*   red. intros. *)
-(*   split; red; intros; reflexivity. *)
-(* Qed. *)
-
-(* Next Obligation.   *)
-(*   red; simpl; intros. *)
-(*   refine (exist eqf_sheaf_f_3 _). *)
-(*   red; intros. *)
-(*   reflexivity. *)
-(* Qed. *)
-
-(* Opaque eqf_sheaf. *)
-(* Opaque eqf_transp. *)
-
-Existing Instance eqf_inst.
-Print Instances ForcingOp.
-
 Forcing 
 Lemma zero_refl : (eqf natf Zerof Zerof).
 Next Obligation.
   red. intros. red. reflexivity.
 Qed.
-
 
 Forcing 
 Lemma succrefl : (forall x : natf, eqf natf (Succf x) (Succf x)).
@@ -165,8 +127,5 @@ Qed.
 Forcing 
 Lemma eqrefl : (forall A : Type, forall x : A, eqf A x x).
 Next Obligation.
-  reduce. reflexivity.
+  reduce. simpl. reflexivity.
 Qed.
-
-
-

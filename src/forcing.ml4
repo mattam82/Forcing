@@ -398,7 +398,7 @@ module Forcing(F : ForcingCond) = struct
 
   let mk_sheaf_pair s p a b : constr forcing_term =
     let c, dom, codom = 
-      if s = InType then
+      if s = InType || s = InProp then
 	let shty = mkProd (Anonymous, mkApp (coq_subp, [| p |]), new_Type ()) in
 	let trty = mkApp (coq_transport, [| lift 1 p; mkRel 1 |]) in
 	let lam =
