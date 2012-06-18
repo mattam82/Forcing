@@ -1,44 +1,8 @@
+Require Import RelationClasses Le.
 Require Import Forcing.
-Require Import RelationClasses.
-
-Notation " '{Σ' x , y } " := (exist x y).
-Notation " '(Σ' x , y ) " := (existT x y).
-
 Import NatForcing.
 Import NatCondition.
 Open Scope forcing_scope.
-
-Hint Extern 4 => progress (unfold le in *) : forcing.
-
-Lemma subp_proof2 p (q : subp p) : ` q <= p. apply subp_proof. Defined.
-Hint Resolve subp_proof2 : forcing.
-
-Ltac forcing_le :=
-  match goal with
-    | |- le (@proj1_sig _ _ ?y) ?x => 
-        apply (proj2_sig y)
-    | |- ` ?x <= ?y => 
-      match type of x with
-        subp ?r => transitivity r
-      end
-    | |- le (@subp_proj ?x ?y) ?x => 
-        apply (proj2_sig y)
-    | |- subp_proj ?x <= ?y => 
-      match type of x with
-        subp ?r => transitivity r
-      end
-  end.
-
-Hint Extern 2 (_ <= _) => forcing_le : forcing.
-
-Obligation Tactic := program_simpl; forcing.
-
-Program Definition embed (p : P) : subp p := p.
-
-Notation " '{Σ'  x } " := (exist x _).
-
-Require Import Le.
-Notation ι r := (iota r).
 
 Forcing Operator eqf : (forall A, A -> A -> Prop).
 
@@ -66,8 +30,25 @@ reflexivity.
 reflexivity.
 Qed.
 
+<<<<<<< HEAD
 Program Inductive eqf_sheaf_ind {p:nat} (A:sheaf p) (x : sheaf_f A p) : (sheaf_f A (embed p)) -> Prop :=
+=======
+Inductive eqf_sheaf_ind {p:nat} (A:sheaf p) (x : sheaf_f A (embed p)) : (sheaf_f A (embed p)) -> Prop :=
+>>>>>>> 0abb895d69f4a1ee758e557acbc129ac1293e714
 | eqf_refl : eqf_sheaf_ind A x x.
+
+Hint Resolve eqf_refl : core.
+
+Instance eqf_sheaf_ind_refl p A : Reflexive (@eqf_sheaf_ind p A).
+Proof eqf_refl A. 
+
+Instance eqf_sheaf_ind_sym p A : Symmetric (@eqf_sheaf_ind p A).
+Proof. red. now induction 1. Qed.
+
+Instance eqf_sheaf_ind_trans p A : Transitive (@eqf_sheaf_ind p A).
+Proof. red. now induction 1. Qed.
+
+Instance eqf_sheaf_ind_equiv p A : Equivalence (@eqf_sheaf_ind p A) := {}.
 
 Program Definition eqf_sheaf {p} := fun (q:subp p) {A:sheaf q} (r : subp q) (x : sheaf_f A r)
   (s : subp r) (y : sheaf_f A (ι s)) (t : subp s) => forall (u: subp t), 
@@ -90,35 +71,37 @@ Axiom prop_ext : prop_extensionality.
 
 Lemma exist_eq {A : Type} {P : A -> Prop} (x y : A) (p : P x) (q : P y) : x = y -> exist x p = exist y q.
 Proof. intros; subst; reflexivity. Qed.
+Notation " '{Σ'  x } " := (exist x _).
 
-Program Definition eqf_sheaf_f_2 {p} (q:subp p) (A : sheaf q): eqf_transty7 p {Σ p, le_refl p} q A (ι q).
-red; intros r x. unfold eqf_transprop; simpl.
-exists (eqf_sheaf_f_1 q A r x); intros s t y.
-apply exist_eq.
-destruct A as (A_f,AΘ); simpl.
-destruct AΘ as (AΘ,(Arefl,Atrans)); simpl.
-unfold eqf_sheaf_f_1, eqf_transp, eqf_sheaf.
-unfold prop_sheafC; simpl.
-unfold Θ; simpl.
-simpl in *.
-extensionality s0.
-apply prop_ext; split; intros H v; rewrite H.
-red in Arefl, Atrans. unfold compose in Atrans. 
-pose (Atrans (iota s)).
-specialize (e (iota t) (iota v) y).
-simpl in *.
-setoid_rewrite <- e; apply eqf_refl.
-red in Atrans.
-pose (Atrans (iota s) (iota t) (iota v) y).
-simpl in e.
-setoid_rewrite <- e; apply eqf_refl.
-Defined.
+Hint Extern 10 (Iota _ _ _) => progress (unfold iota; simpl) : typeclass_instances.
 
-Program Definition eqf_sheaf_f_3 {p} : eqf_transty8 p {Σ p, le_refl p}.
+Program Definition eqf_sheaf_f_2 {p} (q:subp p) (A : sheaf q): eqf_transty7 p (embed p) q A (ι q) :=
+          fun r x => eqf_sheaf_f_1 q A r x.
+
+Next Obligation of eqf_sheaf_f_2.
+Proof. 
+  unfold eqf_transprop; simpl.
+  intros s t y.
+  apply exist_eq.
+  unfold eqf_sheaf_f_1, eqf_transp, eqf_sheaf.
+  unfold prop_sheafC; simpl.
+  extensionality s0.
+  apply prop_ext; split; intros H v; specialize (H v). 
+  pose (sheaf_trans A (iota s) (iota t) (iota v) y).
+  simpl in *.
+  setoid_rewrite <- e in H.
+  apply H.
+  pose (sheaf_trans A (iota s) (iota t) (iota v) y).
+  simpl in e.
+  setoid_rewrite <- e. apply H.
+Qed.
+
+Program Definition eqf_sheaf_f_3 {p} : eqf_transty8 p (embed p) :=
+          eqf_sheaf_f_2 (p:=p).
+Next Obligation of eqf_sheaf_f_3.
 Proof.
   red; intros.
-  exists (eqf_sheaf_f_2 (p:=p) r arg).
-  red. simpl; intros.
+  simpl; intros.
   apply exist_eq.
   extensionality s2.
   extensionality y.
@@ -127,13 +110,13 @@ Proof.
   extensionality t.
   apply prop_ext.
   split; intros.
-  pose proof (sheaf_trans arg).
+  pose proof (sheaf_trans x0).
   red in H0.
   unfold compose in H0.
   setoid_rewrite (H0  (ι r1) s1 (ι u) arg1).
   apply H.
 
-  pose proof (sheaf_trans arg).
+  pose proof (sheaf_trans x0).
   red in H0.
   unfold compose in H0; simpl.
   specialize (H u). symmetry in H0.
@@ -141,10 +124,15 @@ Proof.
   simpl in H0.
   setoid_rewrite <- H0 in H; simpl in H.
   apply H.
-Defined.
+Qed.
 
 Next Obligation.
   red. intros.
   refine (exist eqf_sheaf_f_3 _).
+<<<<<<< HEAD
   abstract (red; intros; reflexivity).
+=======
+  red; intros.
+  reflexivity.
+>>>>>>> 0abb895d69f4a1ee758e557acbc129ac1293e714
 Defined.
