@@ -49,7 +49,21 @@ Qed.
 
 Next Obligation.
 red; simpl; intros.
+split; red; intros.
+reflexivity.
+reflexivity.
+Qed.
+
+Next Obligation.
+red; simpl; intros.
 apply (H (ι r1) s1 arg1).
+Qed.
+
+Next Obligation.
+red; simpl; intros.
+split; red; intros.
+reflexivity.
+reflexivity.
 Qed.
 
 Program Inductive eqf_sheaf_ind {p:nat} (A:sheaf p) (x : sheaf_f A p) : (sheaf_f A (embed p)) -> Prop :=
@@ -132,5 +146,5 @@ Defined.
 Next Obligation.
   red. intros.
   refine (exist eqf_sheaf_f_3 _).
-  admit. (* There must be a fast way to prove this *)
-Qed.
+  abstract (red; intros; reflexivity).
+Defined.
