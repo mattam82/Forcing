@@ -56,7 +56,8 @@ Require Import FunctionalExtensionality.
 Require Import ClassicalFacts.
 Axiom prop_ext : prop_extensionality.
 
-Program Definition eqf_sheaf_f_2 {p} (q:subp p) (A : sheaf q): eqf_transty7 p {Σ p, le_refl p} q A (ι q) := fun r x => eqf_sheaf_f_1 q A r x.
+Program Definition eqf_sheaf_f_2 {p} (q:subp p) (A : sheaf q): eqf_transty7 p {Σ p, le_refl p} q A (ι q) := 
+          fun r x => eqf_sheaf_f_1 q A r x.
 
 Next Obligation of eqf_sheaf_f_2.
 unfold eqf_transprop; simpl.

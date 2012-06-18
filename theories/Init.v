@@ -191,10 +191,10 @@ Module Forcing(F : Condition).
      are ground and check for loops. *)
   Ltac apply_iota_compose p sp q :=
     progress (is_evar p || is_evar q || 
-      not_tried (iota_trans p q) ;
+      try (not_tried (iota_trans p q) ;
               let foo := fresh "tried" in
                 set(foo:=Build_Tried (iota_trans p q)) ;
-              eapply iota_compose). 
+              eapply iota_compose)). 
 
   Hint Extern 3 (Iota ?p ?sp ?q) => apply_iota_compose p sp q : typeclass_instances.
 
