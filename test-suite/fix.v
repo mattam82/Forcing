@@ -7,6 +7,119 @@ Open Scope forcing_scope.
 
 Hint Extern 4 => progress (unfold le in *) : forcing.
 
+Class Have (P : Prop) := have_proof : P.
+
+Program Definition inject {q} (r : P) {prf : Have (r <= q)} : subp q := r.
+Hint Extern 0 (Have ?P) => red; auto : typeclass_instances.
+
+Require Import Program.
+
+Program Definition subp0 (p : nat) : subp p := 0.
+Program Definition subpS (p : nat) (q : nat) (prf: q <= p): subp (S p) := q.
+Program Definition subp_embed {p : nat} (q : subp p) : subp (S p) := q.
+Program Definition subp_succ {p : nat} (q : subp p) : subp (S p) := S q.
+Next Obligation. red. destruct q as [q Hq]; red in Hq; simpl in *. forcing. Qed.
+
+Lemma le_plus_1 {n m} (prf : n <= m) : S n <= S m.
+Proof. forcing. Defined.
+
+Definition case_subp (Q : forall p, subp p -> Type) 
+                     (P0 : forall p, Q p (subp0 p))
+                     (PS : forall p (q : subp p), Q (S p) (subp_succ q)) 
+                     p (q : subp p) : Q p q.
+  change q with {Σ proj1_sig q, proj2_sig q}.
+  generalize (proj2_sig q).
+  destruct (proj1_sig q) as [|q']; intro Hq; red in Hq.
+  apply P0.
+  destruct p. elimtype False; inversion Hq.
+  assert (q' <= p) by forcing.
+  apply (PS p (subp_intro q' H)).
+Defined.                     
+
+Ltac destruct_sigma q :=
+  let q' := fresh q in let Hq := fresh in
+  change q with {Σ proj1_sig q, proj2_sig q};
+  generalize (proj2_sig q) ;
+  destruct (proj1_sig q) as [|q']; intro Hq; red in Hq.
+
+Definition case_subp2 (Q : forall p (q : subp p) (r : subp q), Type) 
+                     (P0 : forall p (q : subp p), Q p q (subp0 (subp_proj q)))
+                     (PS : forall p (q : subp p) (r : subp q), Q (S p) (subp_succ q) (subp_succ r)) 
+                     p (q : subp p) (r : subp q) : Q p q r.
+Proof. 
+  destruct_sigma r.
+  apply P0.
+
+  destruct p. elimtype False. revert H. 
+  destruct_sigma q. 
+  intros Hq. inversion Hq. inversion H.
+
+  revert H; destruct_sigma q. intros Hq.
+  elimtype False; inversion Hq.
+  simpl in *. intros. assert (q0 <= p) by forcing; assert(r0 <= q0) by forcing.
+  apply (PS p (subp_intro q0 H1) (subp_intro r0 H2)).
+Defined.                     
+
+Definition match_sub_subp {p} (Q : subp p -> Type) (P : forall (q : subp p) (A : Q q) (r : subp q), Type)
+                          (P0 : forall (q : subp p) (qq : Q q), P q qq (subp0 (subp_proj q)))
+                          (PS : forall (q' : nat) (prf : S q' <= p) (qq : Q {Σ S q', prf}) (r' : subp q'), 
+                                  P {Σ S q', prf} qq {Σ S (subp_proj r'), le_plus_1 (proj2_sig r')})
+                          (q : subp p) (qq : Q q) (r : subp q) : P q qq r.
+change r with {Σ ` r, proj2_sig r}.
+generalize (proj2_sig r).
+destruct (` r) as [|r']; intros Hr; red in Hr; simpl in *.
+apply P0.  
+
+revert qq r Hr.
+change q with {Σ ` q, proj2_sig q}.
+generalize (proj2_sig q).
+destruct (` q) as [|q']; intros. red in p0; simpl in *.
+elimtype False; inversion Hr. 
+assert(r' <= q') by forcing.
+pose (PS q' p0 qq {Σ r', H}). simpl in p1. apply p1.
+Defined.
+
+Lemma match_sub_subp_0 {p} (Q : subp p -> Type) (P : forall (q : subp p) (A : Q q) (r : subp q), Type)
+                          (P0 : forall (q : subp p) (qq : Q q), P q qq (subp0 (subp_proj q)))
+                          (PS : forall (q' : nat) (prf : S q' <= p) (qq : Q {Σ S q', prf}) (r' : subp q'),
+                                  P {Σ S q', prf} qq {Σ S (subp_proj r'), le_plus_1 (proj2_sig r')})
+
+                          (Pcall : forall (q : subp p) (qq : Q q) (r : subp q) (call : P q qq r), Type)
+                          (P0Call : forall (q : subp p) (qq : Q q), Pcall q qq (subp0 (subp_proj q)) (P0 q qq))
+                          (PSCall : forall (q' : nat) (prf : S q' <= p) (qq : Q {Σ S q', prf}) (r' : subp q'),
+                                      Pcall {Σ S q', prf} qq {Σ S (subp_proj r'), le_plus_1 (proj2_sig r')} (PS q' prf qq r'))
+
+                          (q : subp p) (qq : Q q) (r : subp q) : Pcall q qq r (match_sub_subp Q P P0 PS q qq r).
+destruct q as [[|q] Hq];
+destruct r as [[|r] Hr]; red in Hq, Hr; simpl in *.
+apply P0Call.  elimtype False; inversion Hr.
+apply P0Call.
+assert(r <= q) by forcing.
+pose (PSCall q Hq qq {Σ r, H}). simpl in p0. apply p0.
+Qed.
+
+Program Definition subppred {q} (r : subp q) : subp q := pred r.
+Next Obligation. intros. destruct r. simpl in *. unfold le in *. destruct x; forcing. Defined.
+
+(* Program Definition later_sheaf_f {p : nat} (q : subp p) (T : sheaf q) : subp q -> Type := *)
+(*           fun r => *)
+(*           case_subp (fun p sp => sheaf p -> Type) *)
+(*                     (fun p _ => unit) *)
+(*                     (fun p q T => sheaf_f T q) *)
+(*                     q r T.  *)
+
+(* Program Definition transp {p : P} (s : sheaf p) : transport (sheaf_f s) := *)
+(*           projT2 s. *)
+
+(* Definition later_transp {p} (q : subp p) (T : sheaf q) : transport (later_sheaf_f q T) := *)
+(*           λ (r : subp q) (t : subp r) (M : later_sheaf_f q T r), *)
+(*           case_subp2 (fun p (r : subp p) (t : subp r) => forall T : sheaf p, later_sheaf_f (embed p) T r ->  *)
+(*                                                                              later_sheaf_f (embed p) T (iota t)) *)
+(*                     (fun p r sh lsh => tt) *)
+(*                     (fun p q r sh lsh => transp sh (subp_embed q) r lsh) *)
+(*                     q r t T M.  *)
+
+
 Program Definition later_sheaf_f {p : nat} (q : subp p) (T : sheaf q) : subp q -> Type :=
   fun r =>
     match r with
@@ -15,21 +128,17 @@ Program Definition later_sheaf_f {p : nat} (q : subp p) (T : sheaf q) : subp q -
     end.
 Next Obligation of later_sheaf_f. unfold le. destruct r. simpl in *. subst x; forcing. Qed.
 
-Program Definition subppred {q} (r : subp q) : subp q := pred r.
-Next Obligation. intros. destruct r. simpl in *. unfold le in *. destruct x; forcing. Defined.
-
 Program Definition later_transp {p} (q : subp p) (T : sheaf q) : transport (later_sheaf_f q T) :=
   λ (r : subp q) (t : subp r) (M : later_sheaf_f q T r),
-  let (tn, tprf) as t return later_sheaf_f q T (iota t) := t in
-    match tn return forall prf : tn <= r, later_sheaf_f q T (iota (exist tn prf)) with 
-      | 0 => fun prf => tt
-      | S t' => fun prf => Θ T (subppred r) t' _
-    end tprf.
+  match ` t as tn return forall prf : tn <= r, later_sheaf_f q T (iota (exist tn prf)) with
+    | 0 => fun prf => tt
+    | S t' => fun prf => Θ T (subppred r) t' _
+  end (proj2_sig t).
   
 Next Obligation. intros. destruct r, t. destruct x; simpl in *; forcing. Defined.
 
 Next Obligation.
-  destruct r as [[|r'] Hr]; simpl in *; unfold le in *. 
+  destruct r as [[|r'] Hr]; simpl in *; unfold le in *.
   elimtype False. depelim prf.
 
   unfold subppred; simpl.
@@ -55,37 +164,34 @@ Proof. red; intros.
   simpl in *. unfold later_sheaf_f in x0.
   simpl in x0. assert(x <= ` q) by (unfold le in *; auto with arith).
   pose proof (r {Σ x, H}).
-  simpl. unfold subppred.
-  simpl. apply H0.
+  destruct q as [[|q] Hq]; simpl.
+  now simpl in p0.
+  unfold later_transp. simpl. apply H0. 
 
   unfold compose.
   destruct T as [sh [trans [re tr]]]. 
   revert r s x; case_eq q0. intros.
 
+  subst.
   destruct s as [[|s'] prf].
   now simpl in *.
   
   destruct r as [[|r'] prfr].
   now simpl in *.
 
-  destruct x.
+  destruct x as [|x].
   inversion prfr.
-  simpl in * |-.
+
   red in tr.
-  simpl in *.
-  unfold compose in tr. unfold subppred.
-  simpl. 
-  unfold Θ. simpl.
-  assert(x <=  ` q) by forcing.
-  pose (x':={Σ x, H0}:subp q).
-  pose proof (tr x').
+  unfold compose in tr.
+  abstract_subset_proofs.
+  assert(x <= ` q) by forcing.
+  assert(s' <= r') by forcing.
   assert(r' <= x) by forcing.
-  pose (rs':={Σ r', H2}:subp x').
-  specialize (H1 rs'). assert (s' <= r') by forcing.
-  specialize (H1 ({Σ s', H3})).
-  unfold later_sheaf_f in x0.
-  simpl in x0. specialize (H1 x0).
-  apply H1.
+  pose (tr (inject x) (inject r') (inject s')). simpl in e.
+  destruct q as [[|q'] Hq].
+  now simpl in x0.
+  apply (e x0).
 Qed.
 
 Program Definition later_trans_sheaf {p : nat} (q : subp p) (T : sheaf q) : sheaf q :=
@@ -98,14 +204,19 @@ Next Obligation of later_trans_impl.
   red; intros.
   unfold sheafC.
   destruct arg as [sh [transp [rt tt]]].
-  simpl. unfold later_trans_sheaf. simpl. apply f_equal. apply exist_eq.
+  simpl. unfold later_trans_sheaf. simpl. 
+  unfold later_sheaf_f.
+  unfold case_subp.
+  simpl.
+  apply f_equal. apply exist_eq.
   unfold Θ. simpl.
   extensionality s0.
   extensionality t.
   extensionality x.
   destruct t. 
   destruct x0. reflexivity.
-  simpl. apply f_equal.
+  unfold later_transp. simpl.
+  apply f_equal.
   destruct s0.
   simpl. destruct x1; reflexivity. 
 Qed.
@@ -116,9 +227,181 @@ Next Obligation.
   exact (later_trans_impl p).
 Defined.
 
-Notation " '{Σ' x } " := (exist x _).
+Notation " '{Σ' x } " := (exist x _). Obligations.
 
-Time Forcing Operator next : (forall T : Set, T -> later T).
+Time Forcing Operator switch : (later Type -> Type).
+
+
+Program Definition weaken {p} (r : subp p) (r' : nat) (prf : ` r = S r') : subp p := r'.
+Next Obligation of weaken. red. destruct r. simpl in *. subst. red in p0. forcing. Qed.
+
+Definition cast_later_sheaf_f {p} (q : subp p) (sh : later_sheaf_f (embed q) (sheafC_sheaf q) (embed q))
+                              (r : subp q) (r' : nat) (prf : ` r = S r') : sheaf_f (sheafC_sheaf q) (subppred (embed q)).
+Proof.
+  destruct r as [[|r] Hr]; simpl in *; subst.
+  destruct q as [[|q] Hq]; unfold later_sheaf_f in sh; simpl in *.
+  discriminate. exact sh.
+  destruct q as [[|q] Hq]; unfold later_sheaf_f in sh; simpl in sh.
+  red in Hr. elimtype False; inversion Hr.
+  exact sh.
+Defined.
+
+Program Definition switch_sheaf_def {p : nat} (q : subp p)
+                                    (sh : later_sheaf_f (embed q) (sheafC_sheaf q) (embed q))
+                                    (r : subp q) : Type :=
+          match ` r with
+            | 0 => unit
+            | S r' => sheaf_f (cast_later_sheaf_f q sh r r' _) r'
+          end.
+Next Obligation of switch_sheaf_def.
+Proof.
+  red. destruct r; simpl in *; subst.
+  red in p0. unfold le in *. 
+  destruct q; simpl in *; auto with arith.
+  destruct x; simpl in *; auto with arith.
+Defined.  
+
+(* Program Definition switch_sheaf_def {p : nat} := *)
+(*           match_sub_subp (fun r : subp p => later_sheaf_f (embed r) (sheafC_sheaf r) (embed r)) *)
+(*                          (fun r lsh sh => Type) *)
+(*                          (fun q shq => unit) *)
+(*                          (fun q prf shq r' => sheaf_f shq r'). *)
+
+Program Definition switch_def {p : nat} : {x | switch_transprop p (embed p) x} :=
+          fun r sh => existT (switch_sheaf_def r sh) (λ s t sh', _).
+            
+Program Definition transp {p : P} (s : sheaf p) : transport (sheaf_f s) :=
+          projT2 s.
+
+Next Obligation of switch_def.
+  destruct s as [[|s] Hs]; simpl in *.
+  destruct t as [[|t] Ht]; simpl in *.
+  exact tt.
+
+  destruct r as [[|r] Hr]; simpl in *.
+  unfold switch_sheaf_def. simpl.
+  bang.
+  red in Ht. elimtype False; inversion Ht.
+
+  destruct t as [[|t] Ht]; simpl in *.
+  exact tt.
+  destruct r as [[|r] Hr]; simpl in *.
+  unfold switch_sheaf_def, match_sub_subp in sh' |- *. simpl.
+  bang.
+
+  assert(s <= r) by forcing.
+  assert(t <= s) by forcing.
+  pose (transp sh {Σ s, H} {Σ t, H0}).
+  apply (a sh').
+Defined.
+
+Next Obligation of switch_def.
+  red; split; red; intros.
+  destruct q as [[|q] Hq]. simpl in *.
+  destruct x; auto.
+  simpl in x.
+  destruct r as [[|r] Hr]. simpl in *.
+  bang.
+
+  assert(q <= r) by forcing.
+  pose (sheaf_refl sh {Σ q, H}). apply e.
+
+  unfold compose.
+  destruct s as [[|s] Hs], q as [[|q] Hq], r as [[|r] Hr]; simpl in *; auto.
+  destruct r0 as [[|r0] Hr0]; simpl; auto.
+  bang. bang.  
+  destruct r0 as [[|r0] Hr0]; simpl; auto.
+  bang.  
+
+  abstract_subset_proofs.
+  apply (sheaf_trans sh (inject q) (inject r0) (inject s)). 
+Qed.
+Notation " 'cast' p 'in' x " := (eq_rect _ _ x _ p) (at level 10).
+
+Lemma equal_existT {A} {P : A -> Type} {p q : A} {x : P p} {y : P q} : p = q -> (forall H : p = q, cast H in x = y) ->
+                                                                       existT p x = existT q y.
+Proof. intros. subst. f_equal.  apply (H0 eq_refl). Qed.
+
+Lemma equal_existT_ext {A B} {P : (A -> B) -> Type} {p q : A -> B} {x : P p} {y : P q} 
+  : (forall x : A, p x = q x) -> (forall H : p = q, cast H in x = y) ->
+    existT p x = existT q y.
+Proof. intros.
+  assert (p = q).
+  now extensionality g.
+  subst. f_equal.  apply (H0 eq_refl). 
+Qed.
+
+Next Obligation of switch_def.
+  red. intros. unfold sheafC.
+  unfold sheaf_f. unfold projT1.
+  symmetry.
+  refine (equal_existT_ext _ _).
+  intros. simpl.
+  unfold switch_sheaf_def, match_sub_subp.
+  destruct x as [[|x] Hx]; simpl. 
+  reflexivity.
+  destruct s as [[|s] Hs]; simpl.
+  bang.
+
+  simpl in Hx.
+  revert Hs arg. destruct_sigma r.
+  intros.
+  now simpl in Hs.
+  intros.
+  reflexivity.
+
+  intros.
+
+
+    destruct r as [[|r] Hr]; simpl.
+  destruct s as [[|s] Hs]; simpl.
+  simpl in H.
+  unfold later_transp in H.
+  simpl in H. simpl in arg. red in arg. simpl in arg.
+  destruct arg.
+  change H with (@eq_refl (subp 0 -> Type) (λ s0, switch_sheaf_def (subp0 0) () (ι s0))).
+  unfold eq_rect; simpl.
+  apply exist_eq.  
+  extensionality s.
+  extensionality t.
+  extensionality x.
+  unfold Θ. simpl. 
+  destruct s as [[|s] Hs']; simpl; reflexivity.
+  
+  now simpl in Hs.
+  destruct s as [[|s] Hs']; simpl. 
+  simpl in arg, H.
+  unfold later_transp in H. simpl in H.
+  unfold later_sheaf_f in arg.
+  simpl in arg.
+
+  unfold switch_sheaf_def in H. 
+  simpl in H.
+  unfold cast_later_sheaf_f in H.
+  simpl in H.
+  simpl in H.
+  unfold later_transp in H.
+  simpl in H. simpl in arg. red in arg. simpl in arg.
+  destruct s as [[|s] Hs']; simpl in *.
+  destruct arg.
+  simpl. unfold later_transp. simpl.
+  change H with (@eq_refl (subp 0 -> Type) (λ s0, switch_sheaf_def (subp0 0) () (ι s0))).
+
+  unfold switch_sheaf_def in *.  
+  simpl in *.
+  si
+  reflexivity.
+  destruct_sigma t.
+
+Qed.  
+
+Next Obligation.
+Proof.
+  red.
+  exact @switch_def.
+Defined.
+
+Time Forcing Operator next : (forall T : Type, T -> later T).
 
 Next Obligation.
   intros. red; simpl; intros. 
@@ -175,8 +458,9 @@ Proof. Transparent later_transp.
   assert(r1' <= ` r) by auto with forcing arith.
   assert(r1' <= S r1') by auto with forcing arith.
   pose proof (trt {Σ S r1', Hr1} {Σ r1', H1} {Σ s1', H}).
+  repeat unfold Θ. simpl.
   simpl in H2.
-  rewrite H2.
+  simpl. rewrite H2.
   assert(s1' <= S s1') by auto with forcing arith.
   pose proof (trt {Σ S r1', Hr1} {Σ S s1', Hs1} {Σ s1', H3}).
   simpl in H4.
@@ -199,7 +483,7 @@ Proof.
 Qed.
 
 Next Obligation.
-Proof nextdef. 
+Proof. exact nextdef. Defined.
 
 Forcing Operator fixp : (forall T : Type, (later T -> T) -> T).
 
@@ -239,7 +523,6 @@ Next Obligation of succ_of_Pred.
   destruct q; forcing. 
 Defined.
 
-Program Definition subp0 (p : nat) : subp p := 0.
 
 Require Import Wf.
 
@@ -392,3 +675,17 @@ Next Obligation.
   exists (secondfn p).
   red; intros. reflexivity.
 Qed.
+
+Require Import eqf_def.
+
+Forcing
+Lemma switch_next : (forall A : Type, eqf Type (switch (next _  A)) (later A)).
+Next Obligation.
+Proof.
+  red. intros. red.
+  intros. destruct r as [[|r] Hr]; simpl.  
+  red. intros.
+  simpl. apply f_equal. 
+  unfold later_trans_sheaf.
+  destruct arg as [sh tr]. unfold switch_sheaf_def, match_sub_subp. simpl.
+  unfold later_sheaf_f. simpl. 
