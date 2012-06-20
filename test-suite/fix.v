@@ -331,6 +331,24 @@ Proof. intros.
   subst. f_equal.  apply (H0 eq_refl). 
 Qed.
 
+Lemma cast_exist {C} (c d : C) (prf : c = d) {A : C -> Type} {P : forall c : C, A c -> Prop} {p : A c} {q : A d} (prf1 : P c p) (prf2 : P d q) :
+  cast prf in p = q ->
+  @eq (sig (P d)) (eq_rect c (fun c => sig (P c)) (@exist (A c) (P c) p prf1) d prf) (@exist (A d) (P d) q prf2).
+Proof. destruct prf. simpl.
+  apply exist_eq.
+Qed.
+
+Lemma cast_lambda {C} (c d : C) (prf : c = d) {A : Type} {P : A -> C -> Type} 
+                  (t1 : forall x : A, P x c) 
+                  (t2 : forall x : A, P x d) :
+  (forall x : A, cast prf in (t1 x) = t2 x) ->
+  @eq (forall x : A, P x d) (eq_rect c (fun c => forall x : A, P x c) (λ x : A, t1 x) d prf) (λ x : A, t2 x).
+Proof. destruct prf. simpl.
+  intros. 
+  extensionality xa.
+  apply H.
+Qed.
+
 Next Obligation of switch_def.
   red. intros. unfold sheafC.
   unfold sheaf_f. unfold projT1.
@@ -351,9 +369,7 @@ Next Obligation of switch_def.
   reflexivity.
 
   intros.
-
-
-    destruct r as [[|r] Hr]; simpl.
+  destruct r as [[|r] Hr]; simpl.
   destruct s as [[|s] Hs]; simpl.
   simpl in H.
   unfold later_transp in H.
@@ -369,29 +385,99 @@ Next Obligation of switch_def.
   destruct s as [[|s] Hs']; simpl; reflexivity.
   
   now simpl in Hs.
-  destruct s as [[|s] Hs']; simpl. 
-  simpl in arg, H.
-  unfold later_transp in H. simpl in H.
-  unfold later_sheaf_f in arg.
-  simpl in arg.
 
-  unfold switch_sheaf_def in H. 
-  simpl in H.
-  unfold cast_later_sheaf_f in H.
-  simpl in H.
-  simpl in H.
-  unfold later_transp in H.
-  simpl in H. simpl in arg. red in arg. simpl in arg.
-  destruct s as [[|s] Hs']; simpl in *.
-  destruct arg.
-  simpl. unfold later_transp. simpl.
-  change H with (@eq_refl (subp 0 -> Type) (λ s0, switch_sheaf_def (subp0 0) () (ι s0))).
+  apply cast_exist.
 
-  unfold switch_sheaf_def in *.  
-  simpl in *.
-  si
+  
+  refine (@cast_lambda _ _ _ H _ _ _ _ _).
+  intro.
+  destruct x as [[|x] Hx]; simpl. 
+  unfold switch_def_obligation_1.
+  simpl.
+  refine (@cast_lambda _ _ _ H _ _ _ _ _).
+  intro x.
+  destruct x as [[|x] Hx']; simpl. 
+  unfold Θ. simpl. reflexivity.
   reflexivity.
-  destruct_sigma t.
+
+  unfold switch_def_obligation_1.
+  simpl.
+  refine (@cast_lambda _ _ _ H _ _ _ _ _).
+  intro x'.
+  destruct x' as [[|x'] Hx']; simpl. 
+  unfold Θ. simpl. reflexivity.
+  intros.
+  destruct s as [[|s] Hs]; simpl. 
+  bang.
+
+  unfold Θ. simpl.
+  unfold transp. simpl.
+  unfold Θ. simpl.
+  simpl in H.
+
+  Lemma eq_rect_unnecessary {A} (P : A -> Type) (a b : A) (prf : a = b) (x : P a) (prf2 : P a = P b) : 
+    cast prf in x = eq_rect _ (fun P => P) x _ prf2.
+  Proof.
+    revert x prf2. destruct prf.
+
+    intros.
+    simpl. unfold eq_rect.
+    reflexivity.
+  Qed.
+
+  simpl in Hx.
+  assert(x <= S s) by forcing.
+  red in Hx, Hx'. assert(x' <= x) by forcing.
+  assert(x' <= S s) by now transitivity x.
+  red in Hs. simpl in Hs. assert(s <= r) by forcing.
+  assert(S x <= S r) by now transitivity (S s).
+  assert(x <= r) by forcing. 
+  assert(x' <= r) by (transitivity x; forcing). 
+  
+  pose (eq_rect_unnecessary (fun ty : subp (S s) -> Type => ty (inject (S x)) -> projT1 arg (inject x')) _ _ H). 
+  simpl in e.
+  match goal with
+      |- eq_rect _ _ ?x _ _ = _ => set (fn:=x)
+  end.
+  specialize (e fn).
+  simpl.
+Ltac forward H :=
+  match type of H with
+    | forall X : ?T, _ => let arg := fresh in
+                            assert (arg:T);[|specialize (H arg)]
+  end.
+
+  specialize (e eq_refl).
+  simpl in e.
+  transitivity fn.
+  assumption.
+  subst fn.
+  reflexivity.
+Qed.   
+
+  Lemma f_equal_dep {A} {B : A -> Type} (f g : forall x : A, B x) : f = g -> forall x, f x = g x.
+  Proof. intros. subst; auto. Qed.
+  idtac.
+  match goal with 
+    |- ?m sh' = ?f sh' => apply (f_equal_dep m f)
+  end.
+
+Lemma cast_match {C} (c d : C) (prf : c = d) {A : Type} {P : A -> C -> Type} 
+                  (t1 : forall x : A, P x c) 
+                  (t2 : forall x : A, P x d) :
+  (forall x : A, cast prf in (t1 x) = t2 x) ->
+  @eq (forall x : A, P x d) (eq_rect c (fun c => forall x : A, P x c) (λ x : A, t1 x) d prf) (λ x : A, t2 x).
+Proof. destruct prf. simpl.
+  intros. 
+  extensionality xa.
+  apply H.
+Qed.
+
+
+  simpl in H.
+
+  apply (f_equal_dep (A:=sheaf_f arg (inject x)).
+  clear.
 
 Qed.  
 
