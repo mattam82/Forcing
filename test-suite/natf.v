@@ -1,7 +1,6 @@
 Require Import Forcing.
 Require Import RelationClasses.
 Require Import eqf_ind.
-
 Require Import Le.
 
 Import NatForcing.
@@ -71,6 +70,12 @@ Ltac forcing ::=
   try solve [simpl; unfold Psub in *; auto 20 with arith forcing].
 
 Forcing 
+Lemma eqrefl : (forall A : Type, forall x : A, eqf A x x).
+Next Obligation.
+  reduce. simpl. reflexivity.
+Qed.
+
+Forcing 
 Lemma eqsucc : (forall x y : natf, eqf natf x y -> eqf natf (Succf x) (Succf y)).
 Next Obligation.
   Transparent natf_transp natf_sheaf.
@@ -84,10 +89,4 @@ Next Obligation.
   unfold natf_transp in *.
   simpl in *. 
   apply equal_dep_f with (iota r0) in H. assumption.
-Qed.
-
-Forcing 
-Lemma eqrefl : (forall A : Type, forall x : A, eqf A x x).
-Next Obligation.
-  reduce. simpl. reflexivity.
 Qed.

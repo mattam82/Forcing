@@ -30,11 +30,7 @@ reflexivity.
 reflexivity.
 Qed.
 
-<<<<<<< HEAD
-Program Inductive eqf_sheaf_ind {p:nat} (A:sheaf p) (x : sheaf_f A p) : (sheaf_f A (embed p)) -> Prop :=
-=======
 Inductive eqf_sheaf_ind {p:nat} (A:sheaf p) (x : sheaf_f A (embed p)) : (sheaf_f A (embed p)) -> Prop :=
->>>>>>> 0abb895d69f4a1ee758e557acbc129ac1293e714
 | eqf_refl : eqf_sheaf_ind A x x.
 
 Hint Resolve eqf_refl : core.
@@ -129,10 +125,6 @@ Qed.
 Next Obligation.
   red. intros.
   refine (exist eqf_sheaf_f_3 _).
-<<<<<<< HEAD
-  abstract (red; intros; reflexivity).
-=======
   red; intros.
   reflexivity.
->>>>>>> 0abb895d69f4a1ee758e557acbc129ac1293e714
 Defined.
