@@ -29,16 +29,14 @@ Proof.
   intros. 
   red. intros.
   unfold Θ. simpl.
-  
-
-  unfold sheafC.
-  destruct r as [[|r] Hr].
-  simpl.
+  apply f_equal.
   refine (equal_existT_ext _ _).
   intros.
   unfold later_trans_sheaf. simpl.
   unfold later_sheaf_f, switch_sheaf_def. simpl.
-  destruct x as [[|x] Hx]; simpl. reflexivity. bang.
+  destruct x0 as [[|x0] Hx0]; simpl. reflexivity. 
+  destruct x. bang.
+  simpl. reflexivity.
 
   intros.
   simpl in *.
@@ -50,15 +48,19 @@ Proof.
   destruct t as [[|t] Ht]. unfold Θ. simpl.
   reflexivity.
   simpl. bang.
-  simpl.
 
+  destruct t as [[|t] Ht]. unfold Θ. simpl.
   reflexivity.
-
-
-   simpl.
-  intros.
-
   simpl.
-  intros.
-  destruct arg as [sh tr]. unfold switch_sheaf_def, match_sub_subp. simpl.
-  unfold later_sheaf_f. simpl. 
+  destruct x. bang.
+
+  match goal with
+      |- context [ eq_rect _ _ ?fn _ _ ] => set(f:=fn)
+  end.
+  assert(S t <= S x) by (transitivity (S s); forcing).
+  assert(S s <= S x) by (forcing).
+  transitivity f. 
+  apply (eq_rect_unnecessary (fun ty : subp (S x) -> Type => 
+                                ty (inject (S s)) -> ty (inject (S t))) _ _ H f eq_refl). 
+  subst f. reflexivity.
+Qed.
