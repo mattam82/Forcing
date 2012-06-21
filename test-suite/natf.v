@@ -1,6 +1,6 @@
 Require Import Forcing.
 Require Import RelationClasses.
-Require Import eqf_ind.
+Require Import eqf_def.
 Require Import Le.
 
 Import NatForcing.
@@ -81,12 +81,8 @@ Next Obligation.
   Transparent natf_transp natf_sheaf.
   repeat (red; simpl; intros). 
   red in H. simpl in *.
-  apply f_equal.
+  repeat (unfold Θ, natf_transp in *; simpl in *).
   extensionality r0.
   apply f_equal.
-  specialize (H r0).
-  unfold Θ in H. simpl in H.
-  unfold natf_transp in *.
-  simpl in *. 
   apply equal_dep_f with (iota r0) in H. assumption.
 Qed.
