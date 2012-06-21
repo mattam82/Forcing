@@ -349,6 +349,16 @@ Proof. destruct prf. simpl.
   apply H.
 Qed.
 
+  Lemma eq_rect_unnecessary {A} (P : A -> Type) (a b : A) (prf : a = b) (x : P a) (prf2 : P a = P b) : 
+    cast prf in x = eq_rect _ (fun P => P) x _ prf2.
+  Proof.
+    revert x prf2. destruct prf.
+
+    intros.
+    simpl. unfold eq_rect.
+    reflexivity.
+  Qed.
+
 Next Obligation of switch_def.
   red. intros. unfold sheafC.
   unfold sheaf_f. unfold projT1.
@@ -362,124 +372,62 @@ Next Obligation of switch_def.
   bang.
 
   simpl in Hx.
-  revert Hs arg. destruct_sigma r.
-  intros.
-  now simpl in Hs.
-  intros.
-  reflexivity.
-
-  intros.
   destruct r as [[|r] Hr]; simpl.
-  destruct s as [[|s] Hs]; simpl.
-  simpl in H.
-  unfold later_transp in H.
-  simpl in H. simpl in arg. red in arg. simpl in arg.
-  destruct arg.
-  change H with (@eq_refl (subp 0 -> Type) (λ s0, switch_sheaf_def (subp0 0) () (ι s0))).
-  unfold eq_rect; simpl.
-  apply exist_eq.  
-  extensionality s.
-  extensionality t.
-  extensionality x.
-  unfold Θ. simpl. 
-  destruct s as [[|s] Hs']; simpl; reflexivity.
-  
   now simpl in Hs.
-
-  apply cast_exist.
-
-  
-  refine (@cast_lambda _ _ _ H _ _ _ _ _).
-  intro.
-  destruct x as [[|x] Hx]; simpl. 
-  unfold switch_def_obligation_1.
-  simpl.
-  refine (@cast_lambda _ _ _ H _ _ _ _ _).
-  intro x.
-  destruct x as [[|x] Hx']; simpl. 
-  unfold Θ. simpl. reflexivity.
   reflexivity.
 
-  unfold switch_def_obligation_1.
-  simpl.
-  refine (@cast_lambda _ _ _ H _ _ _ _ _).
-  intro x'.
-  destruct x' as [[|x'] Hx']; simpl. 
-  unfold Θ. simpl. reflexivity.
   intros.
-  destruct s as [[|s] Hs]; simpl. 
+  simpl.
+  apply cast_exist.
+  refine (@cast_lambda _ _ _ H _ _ _ _ _).
+  intros.
+  refine (@cast_lambda _ _ _ H _ _ _ _ _).
+  intros x0.
+  destruct x as [[|x] Hx]; simpl.
+  destruct x0 as [[|x0] Hx0]; simpl.
+  unfold Θ. simpl. reflexivity.
+
+  now simpl in Hx0.
+
+  destruct x0 as [[|x0] Hx0]; simpl.
+  unfold Θ. simpl. reflexivity.
+
+  destruct s as [[|s] Hs]; simpl.
   bang.
 
+  destruct r as [[|r] Hr]; simpl.
+  now simpl in Hs.
   unfold Θ. simpl.
-  unfold transp. simpl.
+  unfold later_transp. simpl.
   unfold Θ. simpl.
-  simpl in H.
+  unfold subppred. simpl.
+  unfold switch_sheaf_def. simpl.
 
-  Lemma eq_rect_unnecessary {A} (P : A -> Type) (a b : A) (prf : a = b) (x : P a) (prf2 : P a = P b) : 
-    cast prf in x = eq_rect _ (fun P => P) x _ prf2.
-  Proof.
-    revert x prf2. destruct prf.
+  red in Hr, Hs, Hx, Hx0; simpl in *.
+  assert(x0 <= x /\ x <= s /\ s <= r /\ r <= p) by forcing.
+  assert(x <= r) by (transitivity s; forcing).
+  assert(x0 <= r) by (transitivity x; forcing).
 
-    intros.
-    simpl. unfold eq_rect.
-    reflexivity.
-  Qed.
-
-  simpl in Hx.
-  assert(x <= S s) by forcing.
-  red in Hx, Hx'. assert(x' <= x) by forcing.
-  assert(x' <= S s) by now transitivity x.
-  red in Hs. simpl in Hs. assert(s <= r) by forcing.
-  assert(S x <= S r) by now transitivity (S s).
-  assert(x <= r) by forcing. 
-  assert(x' <= r) by (transitivity x; forcing). 
-  
-  pose (eq_rect_unnecessary (fun ty : subp (S s) -> Type => ty (inject (S x)) -> projT1 arg (inject x')) _ _ H). 
-  simpl in e.
+  pose proof (eq_rect_unnecessary (fun ty : subp (S s) -> Type => 
+                               ty (inject (S x)) -> projT1 arg (inject x0)) _ _ H). 
+  simpl in H3.
+  unfold switch_sheaf_def in H3. simpl in H3.
   match goal with
       |- eq_rect _ _ ?x _ _ = _ => set (fn:=x)
   end.
-  specialize (e fn).
-  simpl.
-Ltac forward H :=
-  match type of H with
-    | forall X : ?T, _ => let arg := fresh in
-                            assert (arg:T);[|specialize (H arg)]
-  end.
-
-  specialize (e eq_refl).
-  simpl in e.
+  specialize (H3 fn eq_refl).
+  simpl in H3.
   transitivity fn.
   assumption.
   subst fn.
   reflexivity.
 Qed.   
 
-  Lemma f_equal_dep {A} {B : A -> Type} (f g : forall x : A, B x) : f = g -> forall x, f x = g x.
-  Proof. intros. subst; auto. Qed.
-  idtac.
-  match goal with 
-    |- ?m sh' = ?f sh' => apply (f_equal_dep m f)
+Ltac forward H :=
+  match type of H with
+    | forall X : ?T, _ => let arg := fresh in
+                            assert (arg:T);[|specialize (H arg)]
   end.
-
-Lemma cast_match {C} (c d : C) (prf : c = d) {A : Type} {P : A -> C -> Type} 
-                  (t1 : forall x : A, P x c) 
-                  (t2 : forall x : A, P x d) :
-  (forall x : A, cast prf in (t1 x) = t2 x) ->
-  @eq (forall x : A, P x d) (eq_rect c (fun c => forall x : A, P x c) (λ x : A, t1 x) d prf) (λ x : A, t2 x).
-Proof. destruct prf. simpl.
-  intros. 
-  extensionality xa.
-  apply H.
-Qed.
-
-
-  simpl in H.
-
-  apply (f_equal_dep (A:=sheaf_f arg (inject x)).
-  clear.
-
-Qed.  
 
 Next Obligation.
 Proof.
@@ -534,24 +482,21 @@ Proof. Transparent later_transp.
   destruct arg as [sh [tr [trr trt]]].
   simpl in *.
   red in trt.
-  repeat unfold Θ. simpl.
-  repeat unfold Θ. simpl.
-  unfold iota in *; simpl.
   destruct r1 as [[|r1'] Hr1]; simpl in *.
-  inversion Hs1. unfold compose in trt.
+  inversion Hs1. 
+
+  repeat (unfold later_transp, Θ; simpl).
+  unfold compose in trt.
 
   assert(s1' <= r1') by auto with forcing arith.
   assert(r1' <= ` r) by auto with forcing arith.
   assert(r1' <= S r1') by auto with forcing arith.
   pose proof (trt {Σ S r1', Hr1} {Σ r1', H1} {Σ s1', H}).
-  repeat unfold Θ. simpl.
   simpl in H2.
-  simpl. rewrite H2.
   assert(s1' <= S s1') by auto with forcing arith.
   pose proof (trt {Σ S r1', Hr1} {Σ S s1', Hs1} {Σ s1', H3}).
   simpl in H4.
-  rewrite H4.
-  reflexivity.
+  now rewrite H4, H2.
 Qed.
 
 Transparent later_transp. 
@@ -711,12 +656,6 @@ Qed.
 
 Program Definition subp_le {p} (q : subp p) r (prf : p <= r) : subp r := q.
 
-Ltac forward H :=
-  match type of H with
-    | forall X : ?T, _ => let arg := fresh in
-                            assert (arg:T);[|specialize (H arg)]
-  end.
-
 Next Obligation of secondfn.
   intros [r1 Hr1]. 
   induction r1; simpl; intros.
@@ -761,17 +700,3 @@ Next Obligation.
   exists (secondfn p).
   red; intros. reflexivity.
 Qed.
-
-Require Import eqf_def.
-
-Forcing
-Lemma switch_next : (forall A : Type, eqf Type (switch (next _  A)) (later A)).
-Next Obligation.
-Proof.
-  red. intros. red.
-  intros. destruct r as [[|r] Hr]; simpl.  
-  red. intros.
-  simpl. apply f_equal. 
-  unfold later_trans_sheaf.
-  destruct arg as [sh tr]. unfold switch_sheaf_def, match_sub_subp. simpl.
-  unfold later_sheaf_f. simpl. 
