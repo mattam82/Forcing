@@ -656,17 +656,14 @@ Qed.
 
 Program Definition subp_le {p} (q : subp p) r (prf : p <= r) : subp r := q.
 
-Next Obligation of secondfn.
+Lemma innerfn_prop p r arg : secondfnprop p r arg (innerfn p r arg).
+
   intros [r1 Hr1]. 
   induction r1; simpl; intros.
-  unfold innerfn; simpl.
-  unfold Θ in *; simpl in *.
-  red in arg1.
 
   (* 0 *)
   destruct s1 as [[|s1] Hs1]; simpl.
   apply (proj2_sig arg1 (subp0 0) (subp0 _)). 
-
   inversion Hs1.
 
   (* S n *)
@@ -694,9 +691,13 @@ Next Obligation of secondfn.
   apply IHr1.
 Qed.
 
+Next Obligation of secondfn.
+  apply innerfn_prop.
+Qed.
+
 Next Obligation.
   red.
   intros p.
   exists (secondfn p).
   red; intros. reflexivity.
-Qed.
+Defined.
