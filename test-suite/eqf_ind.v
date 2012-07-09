@@ -128,6 +128,3 @@ Next Obligation.
   red; intros.
   reflexivity.
 Defined.
-
-Forcing 
-Lemma eqsucc : (forall x y : natf, eqf natf x y -> eqf natf (Succf x) (Succf y)).

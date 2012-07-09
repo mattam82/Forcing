@@ -48,18 +48,22 @@ Next Obligation.
   red. intros; exact (λ (q:subp p), zerof (`q)).
 Defined.
 
+Existing Instance eqf_inst.
+
 Forcing 
 Lemma zero_refl : (eqf natf Zerof Zerof).
 Next Obligation.
-  red. intros. red. reflexivity.
+  red. intro p. red. intro q.
+  apply eqf_refl.
 Qed.
 
 Forcing 
 Lemma succrefl : (forall x : natf, eqf natf (Succf x) (Succf x)).
 Next Obligation.
 Proof.
-  red. intros. red. simpl; intros.
-  red. reflexivity. 
+  red. intro p. red. simpl; intros q x.
+  red. simpl; intro r.
+  reflexivity. 
 Qed.
 
 Ltac forcing ::= 
