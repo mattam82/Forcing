@@ -20,10 +20,7 @@ apply (H (ι r2) s2 arg2).
 Qed.
 
 Next Obligation.
-red; simpl; intros.
-split; red; intros.
-reflexivity.
-reflexivity.
+red; simpl; intros; split; red; intros; reflexivity.
 Qed.
 
 Next Obligation.
@@ -32,10 +29,7 @@ apply (H (ι r1) s1 arg1).
 Qed.
 
 Next Obligation.
-red; simpl; intros.
-split; red; intros.
-reflexivity.
-reflexivity.
+red; simpl; intros; split; red; intros; reflexivity.
 Qed.
 
 Program Definition eqf_sheaf {p} := fun (q:subp p) (A:sheaf q) (r : subp q) (x : sheaf_f A r)

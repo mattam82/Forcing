@@ -20,6 +20,48 @@ Obligation Tactic := program_simpl; forcing.
 (*   subst. f_equal.  apply (H0 eq_refl).  *)
 (* Qed. *)
 
+(* refl /\ trans proofs *)
+Ltac transprop :=
+  red; intros; split; red; intros; reflexivity.
+
+Ltac forcing ::= 
+             (try (solve [simpl; unfold Psub in *; auto 20 with arith forcing]))
+             || (try transprop).
+
+Forcing Operator later_arrow : (forall T U , later (T -> U) -> (later T -> later U)).
+
+Next Obligation.
+Proof.
+  red. intros. red in H. simpl in *.
+  specialize (H (iota r3) s3). apply H.
+Qed.
+
+Next Obligation.
+Proof. red in H. red; intros. simpl in r5.
+  refine (H (iota r5) s4 _). 
+Qed.
+
+
+Next Obligation.
+Proof. red in H. red; intros. simpl in r2.
+  simpl in H.
+  unfold subp_proj.
+  simpl.
+  refine (H (iota r2) s2 _). 
+Qed.
+
+Next Obligation.
+Proof. red in H. red; intros. simpl in r1.
+  refine (H (iota r1) s1 _). 
+Qed.
+
+Next Obligation.
+Proof. red in H. red; intros. simpl in r1.
+  refine (H (iota r1) s1 _). 
+Qed.
+  
+Obligations.
+
 Forcing
 Lemma switch_next : (forall A : Type, eqf Type (switch (next _  A)) (later A)).
 Next Obligation.

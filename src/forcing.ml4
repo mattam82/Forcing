@@ -294,6 +294,14 @@ module Forcing(F : ForcingCond) = struct
   let lift_res n = map_trans_res (lift n)
   let liftn_res n m = map_trans_res (liftn n m)
 
+  let liftn_res_ctx n m l = 
+    let _, res = 
+      List.fold_right (fun (na, t, c) (m, acc) ->
+			 (succ m, (na, map_trans_res (liftn n m) t, 
+				   Option.map (liftn n m) c) :: acc))
+	l (m, [])
+    in res
+
   let interp (s, tr) p = 
     let rec term tr = 
       match kind_of_term (simplc tr) with
@@ -363,29 +371,40 @@ module Forcing(F : ForcingCond) = struct
   let clear_f, next_f = build_ident "f"
   let clear_ty, next_ty = build_ident "ty"
   let clear_prop, next_prop = build_ident "prop"
+  let clear_sh, next_sh = build_ident "sheaf"
   let clear_anon, next_anon = build_ident "arg"
 
   let var id = fun sigma -> mkVar id
 
-  let comm_pi m na rn t' sn u' p =
-    mk_cond_prod rn (subpt p)
-      (mk_cond_prod sn (subpt (mk_var rn))
-	 (mk_var_prod na (lift_res 1 t') (embed (mk_var rn))
-	    (fun sigma -> 
-	       let sort, restru' = restriction (liftn_res 1 2 u') (mk_var rn) (mk_var sn) sigma in
-	       let _, restrt' = restriction (lift_res 2 t')
-		 (embed (mk_var rn)) (mk_var sn) sigma in
-	       let equiv = mk_appc (Lazy.force coq_eq) [mk_ty_hole] in
-		 (IsProp,
-		  (mk_app equiv
-		     [ simpl (mk_app (return restru')
-				[mk_app m [mk_var rn; mk_var na]]);
-		       mk_app m [mk_var sn;
-				 simpl (mk_app (return restrt') [mk_var na])];
-		     ] sigma))
-	    )
-	 )
-      )
+  let comm_pi m rn tys sn concl p =
+    let ntys = List.length tys in
+    let tys = liftn_res_ctx 1 1 tys in (* go over s *)
+    let eq sigma =
+      let sort, restru' = restriction (liftn_res 1 (ntys + 1) concl) 
+	(mk_var rn) (mk_var sn) sigma in
+      let restrargs = 
+	List.rev (list_map_i (fun i (na, t', _) ->
+		    let restr = 
+		      restriction (lift_res i t')
+			(embed (mk_var rn)) (mk_var sn) sigma in
+		      simpl (mk_appc (snd restr) [mk_var (out_name na)])) 1 tys)
+      in
+      let args = List.rev_map (fun (na, _, _) -> mk_var (out_name na)) tys in
+      let equiv = mk_appc (Lazy.force coq_eq) [mk_ty_hole] in
+	(IsProp,
+	 (mk_app equiv
+	    [ simpl (mk_app (return restru')
+		       [mk_app m (mk_var rn :: args)]);
+	      mk_app m (mk_var sn :: restrargs)]
+	    sigma))
+    in
+      mk_cond_prod rn (subpt p)
+	(mk_cond_prod sn (subpt (mk_var rn))
+	   (List.fold_left
+	      (fun prod (na, t, cond) ->
+		 mk_var_prod (out_name na) t (embed (mk_var rn)) prod)
+	      eq tys))
+
       
   let mk_pair a b : constr forcing_term =
     mk_appc (Lazy.force coq_nondep_pair) [mk_ty_hole; mk_ty_hole; a; b]
@@ -470,6 +489,8 @@ module Forcing(F : ForcingCond) = struct
   	    memo := true;
   	    (s, inst)
 
+  let remember name ty sigma = ty sigma
+
   let rec trans (c : constr) (p : constr) : (sorting * constr) forcing_term =
     let trans c p sigma = map_trans_res simplc (trans c p sigma) in
     let pc = return p in
@@ -491,28 +512,47 @@ module Forcing(F : ForcingCond) = struct
 	  else InType, mk_appc coq_type_sheaf [pc] sigma
 
       | Prod (na, t, u) -> 
-	let na = next_anon () in
 	let rn = next_r () and qn = next_q () and fn = next_f () and sn = next_s () in
+	let ctx, concl = decompose_prod_assum c in
 	let prod sigma =
 	  let sigmaq =
 	    (Name qn, (InType, mk_appc coq_subp [pc] sigma), None) :: sigma
 	  in
 	  let sigmar = (Name rn, (InType, mk_appc coq_subp [mk_var qn] sigmaq), None) :: sigmaq in
-	  let t' = remember (next_ty ()) (trans t (mkRel 1)) sigmar in
-	  let u' = remember (next_ty ()) (trans u (mkRel 2)) 
-	    ((Name na, t', Some (mkRel 1)) :: sigmar) in
+	  let n, sigmaf, ctx' = 
+	    List.fold_right (fun (na,b,t) (n, sigma, tys) ->
+			       let t' = remember (next_ty ()) (trans t (mkRel n)) sigma in
+			       let na = match na with
+				 | Anonymous -> Name (next_anon ())
+				 | Name _ -> na
+			       in
+			       let decl = (na, t', Some (mkRel n)) in
+				 (succ n, decl :: sigma, decl :: tys))
+	      ((Anonymous, variable_body, concl) :: ctx) (1, sigmar, [])
+	  in 
+	  let concl, tys = 
+	    match ctx' with
+	    | (_, ty, _) :: tys -> ty, tys
+	    | _ -> assert false
+	  in
 	  let fty = 
  	    mk_cond_prod rn (mk_appc coq_subp [mk_var qn])
-	      (mk_var_prod na t' (mk_var rn) (interp u' (mk_var rn)))
+	      (List.fold_left
+		 (fun prod (na, t, cond) ->
+		    mk_var_prod (out_name na) t (mk_var rn) prod)
+		 (interp concl (mk_var rn)) tys)
 	  in
+		 
+	      (* (mk_var_prod na t' (mk_var rn) (interp u' (mk_var rn))) *)
 	  let ftyrem = remember (next_ty ()) fty in
 	  let ftyprop = 
-	    if fst u' = IsProp then None
+	    if fst concl = IsProp then None
 	    else
 	      (* t' in r :: sigma, moving to r :: fn :: sigma *)
 	      (* u' in t' :: r :: sigma, moving to t' :: r :: fn :: sigma *)
-	      let commpi = 
-		comm_pi (mk_var fn) na rn (liftn_res 1 2 t') sn (liftn_res 1 3 u') (mk_var qn)
+	      let commpi =
+		comm_pi (mk_var fn) rn (liftn_res_ctx 1 2 tys) sn
+		  (liftn_res 1 (List.length tys + 2) concl) (mk_var qn)
 	      in
 	      let prop = mk_lam fn ftyrem commpi in
 		Some (remember (next_prop ()) prop)
@@ -534,9 +574,11 @@ module Forcing(F : ForcingCond) = struct
 	      (mk_cond_lam rn' (mk_appc coq_subp [mk_var qn'])
 	       (mk_cond_lam fn (simpl (mk_app liftty [mk_var qn']))
 		(mk_cond_lam sn (mk_appc coq_subp [mk_var rn'])
-		   (dec_trans (fst u') (mk_app (mk_var fn) [mk_var sn])))))
+		   (dec_trans (fst concl) (mk_app (mk_var fn) [mk_var sn])))))
 	  in 
-	    fst u', (mk_sheaf_pair (fst u') p ty value) sigma
+	  let sh = 
+	    (dec_trans (fst concl) (mk_sheaf_pair (fst concl) p ty (remember (next_sh ()) value)))
+	  in sh sigma
 	in prod
 
       | Lambda (na, t, u) -> 
@@ -677,7 +719,7 @@ module Forcing(F : ForcingCond) = struct
   let translate id tr c env sigma k = 
     defs := [];
     clear_p (); clear_q (); clear_r (); clear_s (); clear_f (); clear_anon (); clear_ty ();
-    clear_prop ();
+    clear_prop (); clear_sh ();
     let s, c' = tr c [] in
     let hook subst = 
       let c' = named_to_nameless (Global.env ()) subst c' in

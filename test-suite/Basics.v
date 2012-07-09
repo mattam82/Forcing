@@ -4,6 +4,7 @@ Require Import RelationClasses.
 Import NatForcing.
 Import NatCondition.
 Open Scope forcing_scope.
+Set Printing All.
 
 Hint Extern 4 => progress (unfold le in *) : forcing.
 
@@ -38,7 +39,6 @@ Defined.
 
 Notation " '{Σ'  x } " := (exist x _).
 
-Forcing Operator later : (Type -> Type).
 
 Lemma later_transp_transport p (q : subp p) (T : sheaf q) : trans_prop (later_transp q T).
 Proof. red; intros.
@@ -90,12 +90,13 @@ Qed.
 
 Program Definition later_trans_sheaf {p : nat} (q : subp p) (T : sheaf q) : sheaf q :=
           existT (later_sheaf_f q T) (exist (later_transp q T) (later_transp_transport p q T)).
+Forcing Operator later : (Type -> Type).
 
 Program Definition later_trans_impl : later_trans :=
           fun p : nat => exist later_trans_sheaf _.
 
 Next Obligation of later_trans_impl.
-  red; intros.
+  try red; intros.
   unfold sheafC.
   destruct arg as [sh [transp [rt tt]]].
   simpl. unfold later_trans_sheaf. simpl. apply f_equal. apply exist_eq.
@@ -121,18 +122,19 @@ Notation " '{Σ' x } " := (exist x _).
 Time Forcing Operator next : (forall T : Set, T -> later T).
 
 Next Obligation.
-  intros. red; simpl; intros. 
+  red; intros.
+  intros. red; simpl; intros.
   apply (H (one_trans _ _ _ r1)).
 Qed.
 
-Next Obligation.
-  red; simpl; intros. split ; red; intros; reflexivity.
-Qed.
+(* Next Obligation. *)
+(*   red; simpl; intros. split ; red; intros; reflexivity. *)
+(* Qed. *)
   
 Definition innernext_fnty {p} (r : subp p) (arg : sheaf r) :=
   ∀ r1 : subp r,
     sheaf_f arg r1
-    → later_sheaf_f (embed r1) (sheafC r (ι r) r1 arg) (ι r1).
+    → later_sheaf_f (embed r1) (sheafC r (embed r) r1 arg) (r1).
  
 Definition innernext_fncommpi {p} (r : subp p) (arg : sheaf r) (f1 : innernext_fnty r arg) :=
   ∀ (r1 : subp r) (s1 : subp r1) (arg1 : sheaf_f arg r1),

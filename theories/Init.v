@@ -116,7 +116,7 @@ Module Forcing(F : Condition).
 
   Program Definition embed (p : P) : subp p := p.
   Next Obligation. red; reflexivity. Qed.
-
+  Coercion embed : P >-> subp.
   (** We define an overloaded [ι] operator to infer canonical 
      coercions of conditions into larger subsets. *)
   
@@ -124,8 +124,7 @@ Module Forcing(F : Condition).
     iota_identity : @eq P x iota
   }.
   
-  Global Implicit Arguments iota [[p] [q] [Iota]].
-
+  Implicit Arguments iota [[p] [q] [Iota]].
   Notation ι r := (iota r).
 
   (*Hint Extern 4 => progress (unfold le in * ) : forcing.*)
@@ -161,11 +160,11 @@ Module Forcing(F : Condition).
   (** The identity, in case no coercion was needed in fact *)
   Global Program Instance iota_reflexive p (q : subp p) : Iota p q p := { iota := (q : P) }.
   
-  (** Self-indexing [q : P p] then [q : P q] *)
-  Global Program Instance iota_lift p (q : subp p) : Iota p q q := { iota := (q : P) }.
+  (* (** Self-indexing [q : P p] then [q : P q] *) *)
+  (* Global Program Instance iota_lift p (q : subp p) : Iota p q q := { iota := (q : P) }. *)
     
   (** [q : P p] so forall [r : P q] [r : P p] as well *)
-  Global Program Instance iota_pi {p} (q : subp p) : Iota q (iota q) p := 
+  Global Program Instance iota_pi {p} (q : subp p) : Iota q q p := 
     { iota := (q : P) }.
       
   (** [q : P p] so forall [r : P q] [r : P p] as well *)
@@ -173,17 +172,19 @@ Module Forcing(F : Condition).
     { iota := (r : P) }.
 
   (** Iotas compose *)
-  Program Definition iota_compose {p sp q r} (pq : Iota p sp q) (qr : Iota q (iota sp) r) : Iota p sp r :=
-    {| iota := iota (iota sp) |}.
+  Program Definition iota_compose {p sp q r} (pq : Iota p sp q) (qr : Iota q (ι sp) r) : Iota p sp r :=
+    {| iota := ι (ι sp) |}.
 
-  Next Obligation. now repeat rewrite <- iota_identity. Defined.
+  Next Obligation.
+    now repeat rewrite <- iota_identity. 
+  Defined.
 
   (**  In case [iota] does not change the type, it's the identity *)
-  Lemma iota_iota_refl {p} (q : subp p) : iota (iota q) = q.
+  Lemma iota_iota_refl {p} (q : subp p) : ι (ι q) = q.
   Proof. now destruct q. Qed.
 
-  Lemma iota_irrel {p} (q : subp p) {r} (X Y : Iota p q r) : iota (Iota:=X) q = iota (Iota:=Y) q.
-  Proof. destruct X, Y. unfold iota; simpl. destruct iota0, iota1. simpl in *. subst. reflexivity. Qed.
+  Lemma iota_irrel {p} (q : subp p) {r} (X Y : Iota p q r) : (iota q (Iota:=X)) = (iota q (Iota:=Y)).
+  Proof. destruct X, Y. simpl. destruct iota0, iota1. simpl in *. subst. reflexivity. Qed.
 
   CoInductive iota_trans : P -> P -> Prop := .
 
@@ -191,10 +192,10 @@ Module Forcing(F : Condition).
      are ground and check for loops. *)
   Ltac apply_iota_compose p sp q :=
     progress (is_evar p || is_evar q || 
-      try (not_tried (iota_trans p q) ;
-              let foo := fresh "tried" in
-                set(foo:=Build_Tried (iota_trans p q)) ;
-              eapply iota_compose)). 
+                      (try (not_tried (iota_trans p q) ;
+                            let foo := fresh "tried" in
+                              set(foo:=Build_Tried (iota_trans p q)) ;
+                            eapply iota_compose))). 
 
   Hint Extern 3 (Iota ?p ?sp ?q) => apply_iota_compose p sp q : typeclass_instances.
 
@@ -203,7 +204,7 @@ Module Forcing(F : Condition).
       |- Iota ?p ?sp ?q => apply_iota_compose p sp q
     end.
   
-  Goal forall p sp q r (iop : Iota p sp q), Iota q (iota sp) r -> Iota p sp r.
+  Goal forall p sp q r (iop : Iota p sp q), Iota q (ι sp) r -> Iota p sp r.
   Proof. intros. typeclasses eauto. Qed.
 
   Goal forall p sp q r, Iota p sp q -> Iota p sp r.
@@ -211,43 +212,43 @@ Module Forcing(F : Condition).
     Fail typeclasses eauto. admit. Qed.
 
   Example one_trans p (q : subp p) (r : subp q) (s : subp r) : subp q.
-  Proof. exact (iota s). Defined.
+  Proof. exact (ι s). Defined.
 
   Example two_trans p (q : subp p) (r : subp q) (s : subp r) (t : subp s) : subp q.
-  Proof. exact (iota t). Defined.
+  Proof. exact (ι t). Defined.
 
   Example three_trans p (q : subp p) (r : subp q) (s : subp r) (t : subp s) (u : subp t) : subp q.
-  Proof. exact (iota u). Defined.
+  Proof. exact (ι u). Defined.
 
     (* Maybe use those instances more? *)
-  Global Instance one_trans_inst p (q : subp p) (r : subp q) (s : subp r) : Iota _ s q := { iota := iota s }.
+  Global Instance one_trans_inst p (q : subp p) (r : subp q) (s : subp r) : Iota _ s q := { iota := ι s }.
   Proof. reflexivity. Defined.
 
-  Global Instance two_trans_inst p (q : subp p) (r : subp q) (s : subp r) (t : subp s) : Iota _ t q := { iota := iota t }.
+  Global Instance two_trans_inst p (q : subp p) (r : subp q) (s : subp r) (t : subp s) : Iota _ t q := { iota := ι t }.
   Proof. reflexivity. Defined.
 
-  Global Instance three_trans_inst p (q : subp p) (r : subp q) (s : subp r) (t : subp s) (u : subp t) : Iota _ u q := {iota := iota u}.
+  Global Instance three_trans_inst p (q : subp p) (r : subp q) (s : subp r) (t : subp s) (u : subp t) : Iota _ u q := {iota := ι u}.
   Proof. reflexivity. Defined.
 
   Example four_trans p (q : subp p) (r : subp q) (s : subp r) (t : subp s) (u : subp t) (v : subp u) 
   : subp q.
-  Proof. exact (iota v). Defined.
+  Proof. exact (ι v). Defined.
 
   Section Translation.
     
     Definition transport {p} (f : subp p → Type) :=
-      forall q : subp p, forall r : subp q, arrow (f q) (f (iota r)).
+      forall q : subp p, forall r : subp q, arrow (f q) (f (ι r)).
 
     Section Sheaf.
       Context {p} {f : subp p -> Type}.
 
       Definition refl (Θ : transport f) := Eval simpl in
         forall q : subp p, forall x : f q, 
-          Θ q (iota q) x = x.
+          Θ q q x = x.
       
       Definition trans (Θ : transport f) := Eval simpl in
         forall q : subp p, forall r : subp q, forall s : subp r,
-          forall x, ((Θ (iota r) s) ∘ (Θ q r)) x = Θ q (iota s) x.
+          forall x, ((Θ (ι r) s) ∘ (Θ q r)) x = Θ q (ι s) x.
 
       Definition trans_prop (Θ : transport f) := 
         refl Θ /\ trans Θ.
@@ -271,9 +272,9 @@ Module Forcing(F : Condition).
 
     Program Definition sheafC (p : P) (q : subp p) (r : subp q) 
       (f : sheaf q) : sheaf r :=
-        existT (fun s => sheaf_f f (iota s))
-        (λ s : subp r, λ t : subp s, λ x : sheaf_f f (iota s),
-          (Θ f (iota s) t x)). 
+        existT (fun s => sheaf_f f (ι s))
+        (λ s : subp r, λ t : subp s, λ x : sheaf_f f (ι s),
+          (Θ f (ι s) t x)). 
 
     Notation " '{Σ'  x } " := (exist x _).
 
@@ -289,8 +290,9 @@ Module Forcing(F : Condition).
       pose proof (sheaf_trans f).
       intros. unfold compose. destruct f; simpl in *.
       destruct s0 as [θ [Hr Ht]]. 
-      red in Ht. pose (Ht (iota q0) r0 s x). unfold compose in *. simpl in *.
-      unfold Θ. simpl in *. rewrite <- e. destruct r0; reflexivity.
+      red in Ht. pose (Ht (ι q0) r0 s x). unfold compose in *. simpl in *.
+      unfold Θ. simpl in *. rewrite <- e.
+      reflexivity.
     Qed.
 
     Lemma sheafC_trans (p : P) : trans_prop (sheafC p).
@@ -312,7 +314,7 @@ Module Forcing(F : Condition).
   Section TranslationProp.
     
     Definition prop_transport {p} (f : subp p → Prop) :=
-      forall q : subp p, forall r : subp q, f q -> f (iota r).
+      forall q : subp p, forall r : subp q, f q -> f (ι r).
 
     Definition prop_sheaf (p : P) :=
       { sheaf_f : subp p -> Prop | prop_transport sheaf_f }.
@@ -325,12 +327,12 @@ Module Forcing(F : Condition).
 
     Program Definition prop_sheafC (p : P) (q : subp p) (r : subp q) 
       (f : prop_sheaf q) : prop_sheaf r :=
-        exist (fun s => prop_sheaf_f f (iota s)) _.
+        exist (fun s => prop_sheaf_f f (ι s)) _.
 
     Next Obligation. red. intros. 
       destruct f.
       simpl in *.
-      specialize (p0 _ (iota r0) H). apply p0.
+      specialize (p0 _ (ι r0) H). apply p0.
     Qed.
 
     Program Definition prop_sheafC_sheaf (p : P) :
