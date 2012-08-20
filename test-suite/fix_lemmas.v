@@ -53,105 +53,109 @@ Proof.
   subst f. reflexivity.
 Qed.
 
-  Forcing
-  Lemma eqfix : (forall (G: later Type -> Type), eqf _ (fixp _ G) (G (next _ (fixp _ G)))).
+Forcing
+Lemma eqfix : (forall (G: later Type -> Type), eqf _ (fixp _ G) (G (next _ (fixp _ G)))).
 
-  Next Obligation.
-    red; simpl; intros; red in H.
-    apply (H (iota r1) s1 arg1).
-  Qed.
+Next Obligation.
+  red; simpl; intros; red in H.
+  apply (H (iota r1) s1 arg1).
+Qed.
 
-  Next Obligation.
-    red.
-    split; red; intros.
-    reflexivity.
-    reflexivity.
-  Qed.
+Next Obligation.
+  red; split; red; intros; reflexivity.
+Qed.
 
-  Next Obligation.
-    red; simpl; intro p.
-    red; simpl; intros [q Hq] f.
-    red; simpl.
-    intro r; apply f_equal; simpl. clear r.
-    induction q.
-    reflexivity.
-
-    unfold innerfn at 1. simpl.
-    apply f_equal; simpl.
-
-    assert (fix_prop := innerfn_prop (S q) (embed (S q)) (sheafC_sheaf (S q))
-      (embed (S q)) (subp_embed (embed q)) 
-     (exist (P := fun x => secondinnerinnerfnprop (S q) (embed (S q)) (sheafC_sheaf (S q)) (embed (S q)) x) (λ s1 : subp (S q), (` f) {Σ ` s1}) (λ s1 : subp (S q), (proj2_sig f) {Σ ` s1}))).
-    simpl in fix_prop.
-    unfold innerfn in fix_prop; simpl in fix_prop.
-    rewrite lift_subp_rect_aux with (prf':= Le.le_refl q : q <= q).
-    symmetry.
-    apply fix_prop.
-  Qed.
-
+Next Obligation.
+  red; simpl; intro p.
+  red; simpl; intros [q Hq] f.
+  red; simpl.
+  intro r; apply f_equal; simpl. clear r.
+  induction q.
+  reflexivity.
   
-  Forcing Operator T : Type.
-  Next Obligation of T_inst.
-    red. exact sheafC_sheaf.
-  Defined.
+  unfold innerfn at 1. simpl.
+  apply f_equal; simpl.
+  
+  assert (fix_prop := innerfn_prop (S q) (embed (S q)) (sheafC_sheaf (S q))
+                                   (embed (S q)) (subp_embed (embed q)) 
+                                   (exist (P := fun x => secondinnerinnerfnprop (S q) (embed (S q)) (sheafC_sheaf (S q)) (embed (S q)) x) (λ s1 : subp (S q), (` f) {Σ ` s1}) (λ s1 : subp (S q), (proj2_sig f) {Σ ` s1}))).
+  simpl in fix_prop.
+  unfold innerfn in fix_prop; simpl in fix_prop.
+  rewrite lift_subp_rect_aux with (prf':= Le.le_refl q : q <= q).
+  symmetry.
+  apply fix_prop.
+Qed.
+  
+Forcing Operator T : Type.
+Next Obligation of T_inst.
+  red. exact sheafC_sheaf.
+Defined.
 
-  Forcing Operator U : Type.
-  Next Obligation of U_inst.
-    red. exact sheafC_sheaf.
-  Defined.
+Forcing Operator U : Type.
+Next Obligation of U_inst.
+  red. exact sheafC_sheaf.
+Defined.
 
-  Forcing Operator later_arrow : (later (T -> T) -> (later T -> later T)).
-  Next Obligation.
-    red; simpl; intros; red in H.
-    apply (H (iota r1) s1 arg1).
-  Qed.
+Forcing Operator later_arrow : (later (T -> T) -> (later T -> later T)).
+Next Obligation.
+  red; simpl; intros; red in H.
+  apply (H (iota r1) s1 arg1).
+Qed.
 
-  Next Obligation.
-    red.
-    split; red; intros.
-    reflexivity.
-    reflexivity.
-  Qed.
+Next Obligation.
+  red.
+  split; red; intros.
+  reflexivity.
+  reflexivity.
+Qed.
 
-  Next Obligation.
-    red; simpl; intros; red in H.
-    apply (H (iota r3) s2 arg2).
-  Qed.
+Next Obligation.
+  red; simpl; intros; red in H.
+  apply (H (iota r3) s2 arg2).
+Qed.
 
-  Next Obligation.
-    red.
-    split; red; intros.
-    reflexivity.
-    reflexivity.
-  Qed.
+Next Obligation.
+  red.
+  split; red; intros.
+  reflexivity.
+  reflexivity.
+Qed.
 
-  Lemma zero p : Psub p 0.
-    forcing.
-  Qed.
+Lemma zero p : Psub p 0.
+forcing.
+Qed.
 
-  Definition elim_subp0 (P:subp 0 -> Type) (P0 : P (subp0 0)) : forall (q:subp 0), P q.
+Definition elim_subp0 (P:subp 0 -> Type) (P0 : P (subp0 0)) : forall (q:subp 0), P q.
+Proof. destruct q as [[|q] Hq].
+  apply P0.
+  red in Hq. elimtype False. inversion Hq.
+Defined.
+
+Definition elim_subp0P (P:subp 0 -> Prop) (P0 : P (subp0 0)) : forall (q:subp 0), P q.
+Proof.  
   destruct q as [[|q] Hq].
   apply P0.
   red in Hq. elimtype False. inversion Hq.
-  Defined.
+Defined.
 
-  Definition later_arrow_sheaf_0 p : later_arrow_transty7 p (embed p) {Σ 0,zero p} (embed 0).
+Definition later_arrow_sheaf_0 p : later_arrow_transty7 p (embed p) {Σ 0,zero p} (embed 0).
+Proof. 
   refine (elim_subp0 _ _).
   intro.
   exact tt.
-  Defined.
+Defined.
 
-  Definition later_arrow_sheaf_Sq p q (Hq : Psub p (S q)) (arg : ∀ r : subp (embed q), sheaf r → sheaf r): later_arrow_transty7 p (embed p) {Σ S q,Hq} (embed (S q)).
+Definition later_arrow_sheaf_Sq p q (Hq : Psub p (S q)) (arg : ∀ r : subp (embed q), sheaf r → sheaf r): later_arrow_transty7 p (embed p) {Σ S q,Hq} (embed (S q)).
+Proof. 
   red; intros r arg'.
   destruct r as (r,Hr); destruct r.
   exact tt.
   assert (Psub q r) by forcing.
   exact (arg {Σ r,H} arg').
-  Defined.
+Defined.
 
-  Lemma succ_le r : Psub (S r) r.
-    forcing.
-  Qed.
+Lemma succ_le r : Psub (S r) r.
+Proof. forcing. Qed.
 
   Definition later_arrow_sheaf p : later_arrow_transty8 p (embed p).
   red; intros q arg.
@@ -193,8 +197,7 @@ Qed.
   simpl.
   refine (equal_exist _).
   apply functional_extensionality_dep.
-  refine (elim_subp0 _ _).
-  reflexivity.
+  refine (elim_subp0P _ _). reflexivity.
   simpl.
   refine (equal_exist _).
   apply functional_extensionality_dep.
@@ -333,9 +336,11 @@ Qed.
     reflexivity.
   Qed.
   
-  Notation next_arrow f := (later_arrow (next (T -> T) f)).
-  
   (* proofs of the following four axioms should be eq_refl *)
+  Fixpoint nlater n T := match n with
+                           | 0 => T
+                           | S n' => later (nlater n' T)
+                         end.
 
   Forcing
   Lemma next_naturality : (forall  (f:T -> T) (v:T), eqf (later T) (next T (f v)) ((next_arrow f) (next T v))).
@@ -369,7 +374,7 @@ Qed.
     red; intro.
     red; intros.
     destruct r as (r,Hr); destruct r.
-    refine (elim_subp0 _ _).
+    refine (elim_subp0P _ _).
     intro; simpl.
     intro; reflexivity.
 
@@ -443,11 +448,11 @@ Qed.
 
   Next Obligation.
     red; intro p; destruct p; simpl.
-    refine (elim_subp0 _ _).
+    refine (elim_subp0P _ _).
     unfold Θ; simpl.
     apply equal_exist.
     apply functional_extensionality_dep.
-    refine (elim_subp0 _ _).
+    refine (elim_subp0P _ _).
     simpl. reflexivity.
 
     intro q.
@@ -459,13 +464,100 @@ Qed.
   Qed.
 
 
+  Notation next_arrow f := (later_arrow (next (T -> T) f)).
   Notation comp g f := (fun x => g (f x)).
+  
+  Forcing
+  Lemma next_arrow_comp : (forall (g:T->T) (f:T->T) (x:later T), eqf (later T)
+    (next_arrow (comp g f) x) ((next_arrow g) ((next_arrow f) x))).
+
+  Next Obligation of next_arrow_comp_transty.
+  Proof.
+    red; intros.
+    red in H. simpl in *.
+    apply (H (iota r1) s1 arg1).
+  Qed.
+
+  Next Obligation of next_arrow_comp_transty.
+  Proof.
+    red; intros.
+    split; red; intros; reflexivity.
+  Qed.
+
+  Next Obligation of next_arrow_comp_transty5.
+  Proof.
+    red; intros.
+    red in H. simpl in *.
+    apply (H (iota r4) s3 arg3).
+  Qed.
+
+  Next Obligation of next_arrow_comp_transty5.
+  Proof.
+    red; intros.
+    split; red; intros; reflexivity.
+  Qed.
+
+
+  Next Obligation of next_arrow_comp_transty11.
+  Proof.
+    red; intros. simpl in *.
+    apply (H (iota r7) s5 arg5).
+  Qed.
+
+  Next Obligation of next_arrow_comp_transty11.
+  Proof.
+    red; intros; split; red; intros; reflexivity.
+  Qed.
+
+  Next Obligation of next_arrow_comp_transty11.
+  Proof.
+    red; intros. simpl in *. red in H0, arg2, H.
+    destruct (sheafC_trans (iota s5)). red in H1.
+    rewrite H1.
+    destruct (sheafC_trans (` r7)). red in H3.
+    rewrite H3.
+    pose (H0 (iota r7)). simpl in e.
+    rewrite e.
+    apply f_equal. clear e H1 H2 H3 H4.
+    simpl in *. pose (H (iota r7)). simpl in e.
+    rewrite e. reflexivity.
+  Qed.
+
+  Next Obligation of next_arrow_comp_transty11.
+  Proof.
+    red; intros; simpl in *.
+    apply (H (iota r9) s6 arg6).   Qed.
+
+  Next Obligation of next_arrow_comp_transty11.
+  Proof.
+    red; intros; split; red; intros; reflexivity.
+  Qed.
+
+
+  Next Obligation of next_arrow_comp_transty11.
+  Proof.
+    red; intros; simpl in *.
+    apply (H (iota r11) s7 arg7).   
+  Qed.
+
+  Next Obligation of next_arrow_comp_transty11.
+  Proof.
+    red; intros; split; red; intros; reflexivity.
+  Qed.
+
+  Next Obligation. 
+  Proof.
+    red. red; intros.
+    red; intros.
+    unfold next_arrow_comp_transty21. destruct r6.
+    simpl. destruct x; simpl. red in p0.
+    intro. red in arg4. red. simpl; reflexivity.
+    
+    intros arg4; red in arg4. simpl in arg4.
+    red. reflexivity.
+  Qed.
 
   Forcing
   Lemma next_arrow_wird : (forall (M : forall n, nlater n T -> nlater n T -> nlater n T)
     (n:nat) (g : nlater n T),
     later_arrow ((next_arrow (M n)) (next g)) = M (S n) (next g)).
-
-  Forcing
-  Lemma next_arrow_comp : (forall (g:T->T) (f:T->T) (x:later T), eqf (later T)
-    (next_arrow (comp g f) x) ((next_arrow g) ((next_arrow f) x))).
