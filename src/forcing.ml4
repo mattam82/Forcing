@@ -540,17 +540,13 @@ module Forcing(F : ForcingCond) = struct
 	in prod
 
       | Lambda (na, t, u) -> 
-	let l sigma =
 	  let na = if na = Anonymous then next_anon () else out_name na in
 	  let qn = next_q () in
-	  let t' = trans t (mkRel 1) sigma in
-	  let term =
 	    mk_cond_lam qn (mk_appc coq_subp [pc])
-	      (mk_var_lam na (interp t' (mk_var qn) sigma) (mk_var qn)
-		 (trans u (mkRel 2)))
-	  in term sigma
-	in l
-
+	      (fun sigma -> 
+		 let t' = trans t (mk_var qn sigma) sigma in
+		   mk_var_lam na t' (mk_var qn)
+		     (trans u (mkRel 2)) sigma)
 	  
       | Rel n -> 
 	(fun sigma -> 
